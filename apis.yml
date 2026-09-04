@@ -1,0 +1,64 @@
+name: AnyAPI
+description: >-
+  A unified gateway/marketplace for scraping and data APIs. One key and one prepaid USD wallet reach hundreds of
+  third-party data sources through a single normalized REST interface, billed pay-per-successful-request with no
+  subscriptions. Exposes a REST API, a hosted MCP server, an llms.txt, and published agent skills.
+url: https://raw.githubusercontent.com/api-evangelist/anyapi/refs/heads/main/apis.yml
+created: '2026-09-04'
+modified: '2026-09-04'
+specificationVersion: '0.21'
+tags:
+  - developer_tools
+  - data
+  - search
+  - scraping
+  - social_media
+  - ecommerce
+  - seo
+  - enrichment
+  - mcp
+  - agent-native
+apis:
+  - name: AnyAPI Gateway API
+    description: >-
+      Unified REST gateway to hundreds of normalized scraping and data APIs. Execute jobs via POST /v1/run/{sku}, browse
+      and search the catalog, fetch SKU contracts, check wallet balance, and poll/re-read results. Also offers a hosted
+      MCP server, llms.txt, and published agent skills.
+    humanURL: https://getanyapi.com/docs
+    baseURL: https://api.getanyapi.com
+    tags:
+      - developer_tools
+      - data
+      - search
+      - scraping
+      - social_media
+      - ecommerce
+      - seo
+      - enrichment
+      - mcp
+      - agent-native
+    properties:
+      - type: OpenAPI
+        url: https://api.getanyapi.com/openapi.json
+      - type: MCPServer
+        url: https://api.getanyapi.com/mcp
+      - type: LLMsTxt
+        url: https://getanyapi.com/llms.txt
+      - type: LLMsTxt
+        url: https://getanyapi.com/docs/llms.txt
+      - type: AgentSkill
+        url: https://getanyapi.com/SKILL.md
+      - type: Documentation
+        url: https://getanyapi.com/docs
+      - type: Documentation
+        url: https://getanyapi.com/docs/mcp-server
+      - type: Documentation
+        url: https://getanyapi.com/docs/agent-skills
+maintainers:
+  - FN: AnyAPI Support
+    url: mailto:support@getanyapi.com
+generated:
+  by: apis.io/add
+  model: claude-opus-4-8
+  confidence: 98
+  at: '2026-09-04T05:09:51.686Z'
