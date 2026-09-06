@@ -1,0 +1,48 @@
+generated: '2026-09-04'
+method: searched
+note: >-
+  The first entry is the provider's OWN published skill, saved verbatim - AnyAPI ships an
+  installable Agent Skill at https://getanyapi.com/SKILL.md and from
+  github.com/getanyapi-com/skills (installable with `npx skills add getanyapi-com/skills`, and
+  bundled by `anyapi init`). The three that follow are API Evangelist-generated skills for
+  flows the published one covers only briefly, every step grounded in an operationId verified
+  against openapi/anyapi-gateway-openapi.json.
+skills:
+  - file: anyapi-SKILL.md
+    name: AnyAPI - agent onboarding
+    method: searched
+    source: https://getanyapi.com/SKILL.md
+    fetched: '2026-09-04'
+    http_status: 200
+    content_type: text/markdown
+    license: Apache-2.0
+    verbatim: true
+    upstream_repo: https://github.com/getanyapi-com/skills
+    install: npx skills add getanyapi-com/skills
+    description: >-
+      The provider's own skill. Frontmatter carries name, description, when_to_use, homepage,
+      license, argument-hint and an allowed-tools list scoped to the read-only CLI verbs
+      (search, list, describe, view, balance). Teaches the discover-inspect-run workflow, cost
+      discipline, and the common multi-SKU chains.
+  - file: anyapi-discover-price-run.md
+    name: Discover, price, then run
+    method: generated
+    api: openapi/anyapi-gateway-openapi.json
+    operations: [searchCatalog, browseCatalog, getApi, getResult, getBalance]
+    description: The core loop - find the SKU, read its normalized input schema, quote it free, run it with the response bounded, and re-read rather than re-run.
+  - file: anyapi-durable-long-running-call.md
+    name: Long-running calls without double spending
+    method: generated
+    api: openapi/anyapi-gateway-openapi.json
+    operations: [getRequest, getResult]
+    description: Start a durable Request with an Idempotency-Key, poll it, resume after a client timeout, and read the three 409 collision codes correctly.
+  - file: anyapi-agent-self-onboard.md
+    name: Onboard yourself, then ask permission only when it costs
+    method: generated
+    api: openapi/anyapi-gateway-openapi.json
+    operations: [browseCatalog, searchCatalog, getBalance]
+    description: Zero-to-paid-call with no human - exhaust the free keyless discovery surface, mint a capped trial key, work inside the cap, and surface a single RFC 8628 approval URL when it runs out.
+operation_verification:
+  method: Every operationId above was grepped against openapi/anyapi-gateway-openapi.json before the skill was written.
+  verified: '2026-09-04'
+  all_present: true

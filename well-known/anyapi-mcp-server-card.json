@@ -1,0 +1,55 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/draft/server-card.json",
+  "serverInfo": {
+    "name": "AnyAPI",
+    "version": "1.0.0"
+  },
+  "description": "One key and one USD wallet to call 363 scraping and data APIs through a single normalized interface, with automatic provider failover.",
+  "transport": {
+    "type": "streamable-http",
+    "endpoint": "https://api.getanyapi.com/mcp"
+  },
+  "capabilities": {
+    "tools": {
+      "listChanged": false
+    }
+  },
+  "tools": [
+    {
+      "name": "list_apis",
+      "description": "Browse APIs, optionally filtered by category. Returns identity and nested USD pricing; descriptions, lanes, health, and schemas are omitted."
+    },
+    {
+      "name": "search_apis",
+      "description": "Ranked API search. Args: query; optional category, platform, and limit. Adds descriptions and relevance to list fields; lanes, health, and schemas are omitted."
+    },
+    {
+      "name": "get_api",
+      "description": "Full API definition with nested USD pricing, anonymous lanes, and normalized input/output JSON Schema. Args: sku_id."
+    },
+    {
+      "name": "quote_api",
+      "description": "Price a run_api call before running it. Free, no key required, nothing charged; also validates your input. Args: sku_id, input. Returns maxCostUsd, minCostUsd, and the base/per-item breakdown."
+    },
+    {
+      "name": "run_api",
+      "description": "Execute an API. Args: sku_id, input. Returns output, provider (\"AnyAPI\"), costUsd, items, resultId. Supports context-budget controls (fields, max_items, summary, jq)."
+    },
+    {
+      "name": "read_result",
+      "description": "Re-read a prior run result for free. Args: result_id plus the same context-budget controls. Unbilled, ~15 min window."
+    },
+    {
+      "name": "get_balance",
+      "description": "Remaining wallet balance in USD for your key."
+    }
+  ],
+  "authentication": {
+    "type": "http",
+    "scheme": "bearer",
+    "tokenPrefix": "aa_live_",
+    "description": "Hosted Claude and ChatGPT connect to the URL and complete OAuth. Non-OAuth clients may send a Bearer aa_live_ API key. Mint a free trial key with no human via the signup endpoint - about $0.05 of requests, no account created, self-expires in 7 days.",
+    "obtain": "https://api.getanyapi.com/agent/signup"
+  },
+  "documentation": "https://getanyapi.com/docs/mcp"
+}

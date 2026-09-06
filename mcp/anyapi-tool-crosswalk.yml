@@ -1,0 +1,118 @@
+generated: '2026-09-04'
+method: derived
+source: >-
+  mcp/anyapi-mcp-tools-list.json (live anonymous tools/list, HTTP 200) bound against
+  openapi/anyapi-gateway-openapi.json (live OpenAPI 3.1.0, HTTP 200)
+note: >-
+  Both surfaces were fetched live and unauthenticated, so this crosswalk binds real tool
+  inputSchemas to real operationIds rather than guessing from prose. The MCP surface is a
+  deliberate compression of the REST surface: ten tools stand in for 370 operations, because
+  run_api takes the SKU as an argument where REST gives each SKU its own path and operationId.
+surfaces:
+  openapi:
+    url: https://api.getanyapi.com/openapi.json
+    file: openapi/anyapi-gateway-openapi.json
+    version: 3.1.0
+    operations: 370
+    gated: false
+  mcp:
+    url: https://api.getanyapi.com/mcp
+    transport: streamable-http
+    tools: 10
+    gated: false
+    note: tools/list is anonymous; tool EXECUTION is gated by OAuth or a Bearer aa_live_ key.
+  graphql:
+    present: false
+    note: /graphql 404s on both api.getanyapi.com and getanyapi.com.
+crosswalk:
+  - tool: list_apis
+    category: discovery
+    rest: [listApis, browseCatalog]
+    binding: rest
+    confidence: high
+    note: >-
+      Maps to GET /v1/apis. GET /catalog is the same catalog plus measured per-source health;
+      the tool's lightweight-summary contract matches listApis more closely.
+  - tool: search_apis
+    category: discovery
+    rest: [searchCatalog]
+    binding: rest
+    confidence: high
+    note: GET /catalog/search; the tool's query/category/platform/limit args are that operation's four query parameters.
+  - tool: get_api
+    category: discovery
+    rest: [getApi]
+    binding: rest
+    confidence: high
+    note: GET /v1/apis/{sku}; sku_id is the path parameter.
+  - tool: run_api
+    category: execution
+    rest: [amazon_search, instagram_profile, google_search, web_scrape, linkedin_profile, tiktok_profile]
+    rest_count: 363
+    binding: rest
+    confidence: high
+    note: >-
+      FAN-OUT, one-to-many. run_api's sku_id argument selects among all 363 POST /v1/run/{sku}
+      operations; the six operationIds listed are representative, not exhaustive. The tool's
+      real inputSchema for a given sku_id IS that operation's requestBody, which is why the
+      tool description instructs the agent to call get_api first. The context-budget arguments
+      fields/max_items/summary/jq are those operations' query parameters verbatim.
+  - tool: get_request
+    category: lifecycle
+    rest: [getRequest]
+    binding: rest
+    confidence: high
+    note: GET /v1/requests/{id}; the durable-request poll. Reads stored state, never re-dispatches a paid job.
+  - tool: read_result
+    category: lifecycle
+    rest: [getResult]
+    binding: rest
+    confidence: high
+    note: >-
+      GET /v1/results/{id}. The tool's fields/max_items/summary/jq arguments are that
+      operation's four query parameters verbatim. Free re-read, roughly a 15-minute window.
+  - tool: get_balance
+    category: billing
+    rest: [getBalance]
+    binding: rest
+    confidence: high
+    note: GET /v1/balance.
+mcp_only:
+  - tool: quote_api
+    reason: >-
+      No operation in the published OpenAPI. The provider's own llms.txt documents a REST
+      equivalent at POST /v1/apis/{sku}/quote, so this is a SPEC GAP rather than a genuine
+      MCP-only capability. Not asserted as live: a nonexistent path under /v1/ also answers
+      401, so the auth gate fires before routing and status codes cannot prove existence
+      there. Evidence is the provider's documentation, not a probe.
+  - tool: report_bug
+    reason: Support intake. No public REST operation, and absent from the published MCP server card.
+  - tool: send_feedback
+    reason: Support intake. No public REST operation, and absent from the published MCP server card.
+rest_only:
+  - capability: catalog browse with measured source health
+    operations: [browseCatalog]
+    note: >-
+      GET /catalog returns per-source health including latencyP50Ms next to each lane's
+      pricing - the number the speed/price routing preference reads. list_apis omits health,
+      so this observability is REST-only.
+undocumented_surface:
+  note: >-
+    Surfaces the provider documents in prose but does NOT publish in the OpenAPI. Recorded as
+    a spec-coverage gap, not asserted as verified endpoints.
+  endpoints:
+    - {path: 'POST /v1/apis/{sku}/quote', docs: https://getanyapi.com/llms.txt}
+    - {path: 'POST|GET /v1/api-keys, POST /v1/api-keys/{id}, DELETE /v1/api-keys/{id}, GET /v1/api-keys/{id}/usage', docs: https://getanyapi.com/docs/api-keys}
+    - {path: 'GET|POST /v1/billing/auto-topup', docs: https://getanyapi.com/docs/api-keys}
+    - {path: 'POST /agent/signup', docs: https://getanyapi.com/docs/agent-self-signup, probe_status: 405, probe_note: GET returns 405 Method Not Allowed rather than the blanket 401, which does distinguish it from a nonexistent path}
+coverage:
+  mcp_tools_named: 10
+  mcp_tools_bound_to_rest: 7
+  mcp_only: 3
+  rest_operations_total: 370
+  rest_operations_with_a_tool: 369
+  rest_operations_without_a_tool: 1
+  note: >-
+    369 of 370 operations are reachable from MCP, but through only 7 tools - 363 of them
+    behind run_api's sku_id argument. High reachability, deliberately low tool count, so an
+    agent's tool list stays small while the addressable surface stays large.

@@ -1,0 +1,91 @@
+generated: '2026-09-04'
+method: derived
+source: openapi/anyapi-gateway-openapi.json components.schemas ($ref graph) + https://getanyapi.com/docs
+note: >-
+  Derived mechanically from the $ref graph across the 20 core schemas. The spec also carries 30
+  company_research_* schemas, which are the response vocabulary of ONE SKU (company.research)
+  rather than part of the gateway's own model; they are summarised at the end instead of being
+  folded into the graph. The shape of this model is worth stating plainly: AnyAPI's own domain
+  is small - an API, the sources that can serve it, what each one costs, how fast and how
+  reliably it has been - and everything else is pass-through. The catalog IS the product.
+identifiers:
+  - {entity: API, id: sku, form: 'dotted lowercase <platform>.<operation>, e.g. amazon.search, company_enrichment.lusha', note: 'also the path segment of POST /v1/run/{sku} and the sku_id argument of every MCP tool'}
+  - {entity: Request, id: requestId, form: uuid, header: X-Anyapi-Request-Id}
+  - {entity: Result, id: resultId, form: string, note: returned by a run; re-readable free for about 15 minutes}
+  - {entity: Source, id: 'source.id', form: 'slug, e.g. anonymous-octopus', note: marketplace sources appear under stable animal pseudonyms; direct sources under their own brand}
+  - {entity: APIKey, id: 'the numeric id in the /v1/api-keys path', secret_prefix: aa_live_}
+  - {entity: AccessToken, prefix: aa_at_}
+entities:
+  - name: CatalogAPI
+    description: One catalog entry as returned by GET /catalog - identity, category, method and path, execution mode, aggregate pricing and every serving lane with its measured health.
+    key: slug
+  - name: APISummary
+    description: The lighter catalog row from GET /v1/apis - identity and pricing, health omitted.
+  - name: APIDetail
+    description: 'The full contract from GET /v1/apis/{sku} - normalized input and output JSON Schema, pricing, sources, and trailing-30-day latency percentiles.'
+  - name: CatalogSearchResult
+    description: A ranked search hit from GET /catalog/search, adding relevance and highlighted fields.
+  - name: DiscoverySource
+    description: A serving source's public identity (id, name, kind, artworkKey).
+  - name: DiscoverySourceHealth
+    description: A source's measured 30-day reliability - uptimePct, latencyP50Ms, uptimeSample, requests, servedRequests.
+  - name: DiscoveryOffer
+    description: One source's customer price (model, unit, baseUsd, perUnitUsd, maxUsd, maxPer1kUsd).
+  - name: DiscoveryPricing
+    description: The aggregate price view - the cheapest lane that will be tried first, plus the failover ceiling across all lanes.
+  - name: DiscoveryLatency
+    description: Trailing-30-day p50/p95/p99 service time with sample count and an explicit basis field.
+  - name: DiscoveryExecution
+    description: Execution mode for a SKU (e.g. sync).
+  - name: RequestSnapshot
+    description: The durable Request record - status, timestamps, expiry, retryAfterSeconds, serviceOutcome, settlementState, and the run envelope as `result`.
+  - name: Payment
+    description: Settlement facts for one request - rail, settlementState, costUsd.
+  - name: Error
+    description: The error envelope - error, code, requestId, and an optional Payment.
+  - name: AgentUpgrade / DeviceUpgrade
+    description: The trial-cap continuation - an RFC 8628 device authorization an agent can hand to a human to approve continued spend.
+relationships:
+  - {from: CatalogAPI, to: CatalogSourceOffer, type: has_many, via: lanes}
+  - {from: CatalogAPI, to: DiscoveryPricing, type: has_one, via: pricing}
+  - {from: CatalogAPI, to: DiscoveryExecution, type: has_one, via: execution}
+  - {from: CatalogSourceOffer, to: DiscoverySource, type: has_one, via: source}
+  - {from: CatalogSourceOffer, to: DiscoveryOffer, type: has_one, via: pricing}
+  - {from: CatalogSourceOffer, to: DiscoverySourceHealth, type: has_one, via: health}
+  - {from: APIDetail, to: APISourceOffer, type: has_many, via: sources}
+  - {from: APIDetail, to: DiscoveryPricing, type: has_one, via: pricing}
+  - {from: APIDetail, to: DiscoveryLatency, type: has_one, via: latency}
+  - {from: APIDetail, to: DiscoveryExecution, type: has_one, via: execution}
+  - {from: APISummary, to: APISourceOffer, type: has_many, via: sources}
+  - {from: APISummary, to: DiscoveryPricing, type: has_one, via: pricing}
+  - {from: APISummary, to: DiscoveryExecution, type: has_one, via: execution}
+  - {from: APISourceOffer, to: DiscoverySource, type: has_one, via: source}
+  - {from: APISourceOffer, to: DiscoveryOffer, type: has_one, via: pricing}
+  - {from: CatalogSearchResult, to: DiscoveryPricing, type: has_one, via: pricing}
+  - {from: CatalogSearchResult, to: DiscoveryHighlightField, type: has_many, via: highlights}
+  - {from: CatalogSearchResult, to: DiscoveryExecution, type: has_one, via: execution}
+  - {from: DiscoveryPricing, to: DiscoveryOffer, type: has_one, via: from}
+  - {from: Error, to: Payment, type: has_one, via: payment}
+  - {from: PaymentRequiredError, to: Error, type: inherits, via: allOf}
+  - {from: TrialCapReached, to: AgentUpgrade, type: has_one, via: upgrade}
+  - {from: AgentUpgrade, to: DeviceUpgrade, type: has_one, via: device}
+  - {from: RequestSnapshot, to: Result, type: has_one, via: result, note: inline object rather than a named schema}
+  - {from: Request, to: API, type: belongs_to, via: sku, note: 'runtime reference by SKU string, not a $ref'}
+  - {from: Result, to: Request, type: belongs_to, via: requestId, note: runtime reference}
+pass_through_schemas:
+  count: 30
+  prefix: company_research_
+  note: >-
+    The only SKU whose response vocabulary is modelled in the gateway spec - an evidence-graph
+    dossier (claim, claimEvidence, provenance, competitorProfile, fundingClaim, keyPerson,
+    openRole, newsArticle, platformPresence, icpProfile, crawlCorpus, crawlPage and typed
+    *Claim wrappers). Every other SKU's normalized input/output schema is served at runtime
+    from the per-SKU describe endpoint rather than embedded here, which is why 363 operations share only
+    20 core schemas.
+observations:
+  - >-
+    Schema reuse is high and deliberate: 20 named schemas cover 370 operations because the
+    per-SKU payloads are runtime-served JSON Schema rather than spec components.
+  - >-
+    Health and price are first-class, co-located model citizens. Every lane carries both, which
+    is what makes the preferLatencyUnderMs routing preference a contract rather than a hint.

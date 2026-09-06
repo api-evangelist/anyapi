@@ -1,0 +1,117 @@
+generated: '2026-09-04'
+method: probed
+source: >-
+  openapi/anyapi-gateway-openapi.json, well-known/anyapi-oauth-authorization-server.json,
+  well-known/anyapi-oauth-protected-resource.json, well-known/anyapi-api-catalog.json,
+  mcp/anyapi-mcp-tools-list.json
+note: >-
+  Every `conforms: true` below is anchored to a document that was fetched, not to a marketing
+  claim. This provider's standards posture is unusually strong on the AGENT and DISCOVERY
+  standards and unusually thin on the enterprise compliance ones - it publishes no
+  certification of any kind. Both halves are recorded.
+standards:
+  - id: openapi-3.1
+    conforms: true
+    evidence: 'openapi field is "3.1.0"; 370 operations, all with unique operationIds, summaries, descriptions and 2xx+4xx responses; live at https://api.getanyapi.com/openapi.json'
+  - id: json-schema-2020-12
+    conforms: true
+    evidence: OpenAPI 3.1 dialect; every SKU publishes a normalized input and output JSON Schema readable via GET /v1/apis/{sku}.
+  - id: mcp
+    conforms: true
+    version: streamable-http
+    evidence: 'POST https://api.getanyapi.com/mcp tools/list returned 200 anonymously with 10 tools carrying inputSchema, outputSchema and MCP annotations; a server card conforming to modelcontextprotocol.io/schemas/draft/server-card.json is served at /.well-known/mcp/server-card.json'
+  - id: oauth2
+    conforms: true
+    evidence: 'RFC 6749/OAuth 2.1 authorization_code + refresh_token grants declared at /.well-known/oauth-authorization-server'
+  - id: rfc8414-authorization-server-metadata
+    conforms: true
+    evidence: '/.well-known/oauth-authorization-server returns 200 with issuer, authorization_endpoint, token_endpoint, grant_types_supported and scopes_supported'
+  - id: rfc9728-protected-resource-metadata
+    conforms: true
+    evidence: '/.well-known/oauth-protected-resource returns 200 with resource, authorization_servers and scopes_supported; the MCP endpoint''s WWW-Authenticate challenge points at it'
+  - id: rfc7636-pkce
+    conforms: true
+    evidence: 'code_challenge_methods_supported: ["S256"]'
+  - id: rfc8628-device-authorization
+    conforms: true
+    evidence: 'device_authorization_endpoint declared and urn:ietf:params:oauth:grant-type:device_code in grant_types_supported; also used to deliver the trial-cap upgrade continuation'
+  - id: rfc7591-dynamic-client-registration
+    conforms: true
+    evidence: 'registration_endpoint https://api.getanyapi.com/oauth/register with token_endpoint_auth_methods_supported ["none"]'
+  - id: rfc7009-token-revocation
+    conforms: true
+    evidence: revocation_endpoint https://api.getanyapi.com/oauth/revoke
+  - id: rfc9727-api-catalog
+    conforms: true
+    evidence: '/.well-known/api-catalog returns 200 as application/linkset+json with service-desc, service-doc, service-meta and status relations'
+  - id: rfc9264-linkset
+    conforms: true
+    evidence: The api-catalog document is a valid RFC 9264 linkset with two anchors (the v1 REST base and the MCP endpoint).
+  - id: llms-txt
+    conforms: true
+    evidence: 'https://getanyapi.com/llms.txt (200, 7,056 bytes) and https://getanyapi.com/docs/llms.txt (200, 89,252 bytes), both in llms.txt format'
+  - id: agent-skills
+    conforms: true
+    evidence: 'https://getanyapi.com/SKILL.md (200, text/markdown) with name/description/when_to_use/homepage/license/allowed-tools frontmatter; source repo github.com/getanyapi-com/skills'
+  - id: idempotency-key
+    conforms: true
+    evidence: 'Idempotency-Key request header declared on all 363 mutating operations, with an Idempotency-Replayed response header and three distinct 409 collision codes'
+    note: >-
+      Follows the draft-ietf-httpapi-idempotency-key-header pattern rather than citing the
+      draft. The Idempotency-Replayed response header is a provider extension, not part of the
+      draft.
+  - id: rfc7240-prefer-header
+    conforms: true
+    evidence: "'Prefer: respond-async' and 'Prefer: wait=N' documented on POST /v1/run/{sku}, with 202 + Location + Retry-After"
+  - id: x402
+    conforms: true
+    evidence: '363 operations declare a 402 response carrying a PAYMENT-REQUIRED challenge header and a PAYMENT-RESPONSE/X-PAYMENT-RESPONSE receipt header; settles USDC on Base (eip155:8453). v1 and v2 challenge formats both supported. Listed in the x402 Bazaar.'
+  - id: mpp-machine-payments-protocol
+    conforms: true
+    evidence: "363 operations declare a 'WWW-Authenticate: Payment' challenge and a Payment-Receipt response header; settles on Tempo (chain id 4217)"
+  - id: cursor-pagination
+    conforms: true
+    partial: true
+    evidence: 'Opaque cursor / nextCursor contract, but declared per SKU rather than API-wide - an agent must read inputSchema and outputSchema to know whether a given SKU paginates'
+  - id: rfc9457-problem-details
+    conforms: false
+    evidence: 'Errors are application/json with a bespoke {error, code, requestId, payment} envelope; no application/problem+json media type and no type/title/detail/instance members'
+  - id: rfc9116-security-txt
+    conforms: false
+    evidence: '/.well-known/security.txt returns 404 on all three hosts, although a disclosure contact is published in prose at https://getanyapi.com/security'
+  - id: a2a
+    conforms: false
+    evidence: '/.well-known/agent-card.json and /.well-known/agent.json both 404 on all three hosts'
+  - id: asyncapi
+    conforms: false
+    applicable: false
+    evidence: No event, streaming or webhook surface exists, so AsyncAPI is not applicable rather than missing.
+  - id: graphql
+    conforms: false
+    applicable: false
+    evidence: /graphql 404s on both hosts.
+  - id: apis-json
+    conforms: false
+    evidence: '/apis.json, /apis.yml and /.well-known/apis.json all 404 on all three hosts'
+  - id: openid-connect
+    conforms: false
+    evidence: '/.well-known/openid-configuration 404s; the OAuth server is an authorization server, not an OIDC provider - it issues API access, not identity'
+  - id: ietf-ratelimit-headers
+    conforms: false
+    evidence: No RateLimit-* or X-RateLimit-* headers declared or observed; the provider publishes no rate limit.
+domain_standard:
+  market: web data extraction / data-API aggregation
+  standard_found: false
+  note: >-
+    REWARD-ONLY, and honestly empty. There is no interoperability standard for scraping or
+    web-data APIs - no schema registry, no shared result vocabulary, no conformance profile a
+    buyer could hold two vendors to. AnyAPI's own normalized-schema layer across 363 upstream
+    sources is precisely the bilateral connector that such a standard would replace, and it is
+    proprietary. Nothing is invented to fill this slot.
+  scored_market_standards_checked: [none applicable]
+compliance_program:
+  published: false
+  certifications: []
+  note: >-
+    No SOC 2, ISO 27001, PCI DSS, HIPAA, FedRAMP, CSA STAR or GDPR attestation is published
+    anywhere on the site. No Compliance pointer is emitted. See security/anyapi-trust-center.yml.

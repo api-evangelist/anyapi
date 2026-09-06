@@ -1,12 +1,20 @@
 name: AnyAPI
 description: >-
-  A unified gateway/marketplace for scraping and data APIs. One key and one prepaid USD wallet reach hundreds of
-  third-party data sources through a single normalized REST interface, billed pay-per-successful-request with no
-  subscriptions. Exposes a REST API, a hosted MCP server, an llms.txt, and published agent skills.
+  AnyAPI is a unified gateway and marketplace for scraping and data APIs, operated by AnyAPI Labs, Inc. One key and one
+  prepaid USD wallet reach 363 normalized third-party data sources - social profiles and posts, search and SEO, commerce
+  listings and reviews, sales enrichment and email verification, and clean Markdown for any page with no API at all -
+  through a single REST interface, billed pay-per-successful-request with no subscriptions and no seats. Each SKU is one
+  discovered operation with a normalized JSON input and output schema, priced in real dollars and served by several
+  independent sources ordered cheapest-first with automatic failover. It is unusually agent-native: a public OpenAPI
+  3.1.0 with 370 operations, a hosted MCP server whose tools/list answers anonymously, OAuth 2.1 with device flow,
+  llms.txt, a published Agent Skill, an RFC 9727 api-catalog, agents that mint their own capped trial credential with no
+  human, and inline per-call crypto payment over x402 and MPP.
+image: https://getanyapi.com/og-v7.png
 url: https://raw.githubusercontent.com/api-evangelist/anyapi/refs/heads/main/apis.yml
 created: '2026-09-04'
 modified: '2026-09-04'
 specificationVersion: '0.21'
+position: Producing
 tags:
   - developer_tools
   - data
@@ -18,14 +26,21 @@ tags:
   - enrichment
   - mcp
   - agent-native
+  - web-data
+  - api-marketplace
+  - agent-payments
+  - x402
 apis:
   - name: AnyAPI Gateway API
     description: >-
-      Unified REST gateway to hundreds of normalized scraping and data APIs. Execute jobs via POST /v1/run/{sku}, browse
-      and search the catalog, fetch SKU contracts, check wallet balance, and poll/re-read results. Also offers a hosted
-      MCP server, llms.txt, and published agent skills.
+      Unified REST gateway to 363 normalized scraping and data APIs, published as an OpenAPI 3.1.0 document with 370
+      operations. Execute jobs via POST /v1/run/{sku}, browse and search the catalog without a key, fetch a SKU's
+      normalized input/output JSON Schema with its USD pricing and measured 30-day latency, check wallet balance, and
+      poll or re-read results. Every mutating operation accepts an Idempotency-Key. Also fronts a hosted MCP server,
+      llms.txt, and published agent skills.
     humanURL: https://getanyapi.com/docs
     baseURL: https://api.getanyapi.com
+    image: https://getanyapi.com/og-v7.png
     tags:
       - developer_tools
       - data
@@ -39,9 +54,19 @@ apis:
       - agent-native
     properties:
       - type: OpenAPI
+        url: openapi/anyapi-gateway-openapi.json
+      - type: OpenAPI
         url: https://api.getanyapi.com/openapi.json
       - type: MCPServer
+        url: mcp/anyapi-mcp.yml
+      - type: MCPServer
         url: https://api.getanyapi.com/mcp
+      - type: ToolCrosswalk
+        url: mcp/anyapi-tool-crosswalk.yml
+      - type: Overlay
+        url: overlays/anyapi-gateway-overlay.yaml
+      - type: LLMsTxt
+        url: llms/anyapi-llms.txt
       - type: LLMsTxt
         url: https://getanyapi.com/llms.txt
       - type: LLMsTxt
@@ -56,9 +81,88 @@ apis:
         url: https://getanyapi.com/docs/agent-skills
 maintainers:
   - FN: AnyAPI Support
-    url: mailto:support@getanyapi.com
-generated:
+    email: support@getanyapi.com
+    url: https://getanyapi.com/contact
+x-generated:
   by: apis.io/add
   model: claude-opus-4-8
   confidence: 98
   at: '2026-09-04T05:09:51.686Z'
+common:
+- type: Portal
+  url: https://apilayer.com
+- type: Marketplace
+  url: https://apilayer.com/marketplace
+- type: Signup
+  url: https://apilayer.com/signup
+- type: DomainSecurity
+  url: security/anyapi-domain-security.yml
+- type: Authentication
+  url: authentication/anyapi-authentication.yml
+- type: OAuthScopes
+  url: scopes/anyapi-scopes.yml
+- type: Packages
+  url: packages/anyapi-packages.yml
+- type: SDKs
+  url: packages/anyapi-packages.yml
+- type: CLI
+  url: cli/anyapi-cli.yml
+- type: WellKnown
+  url: well-known/anyapi-well-known.yml
+- type: APICatalog
+  url: https://getanyapi.com/.well-known/api-catalog
+- type: Conventions
+  url: conventions/anyapi-conventions.yml
+- type: Idempotency
+  url: conventions/anyapi-conventions.yml
+- type: ErrorCatalog
+  url: errors/anyapi-problem-types.yml
+- type: ErrorCodes
+  url: errors/anyapi-error-codes.yml
+- type: Conformance
+  url: conformance/anyapi-conformance.yml
+- type: Lifecycle
+  url: lifecycle/anyapi-lifecycle.yml
+- type: ChangeLog
+  url: changelog/anyapi-changelog.yml
+- type: DataModel
+  url: data-model/anyapi-data-model.yml
+- type: Sandbox
+  url: sandbox/anyapi-sandbox.yml
+- type: Plans
+  url: plans/anyapi-plans-pricing.yml
+- type: RateLimits
+  url: rate-limits/anyapi-rate-limits.yml
+- type: AgentSkill
+  url: skills/_index.yml
+- type: VulnerabilityDisclosure
+  url: security/anyapi-vulnerability-disclosure.yml
+- type: Security
+  url: https://getanyapi.com/security
+- type: DeveloperPortal
+  url: https://getanyapi.com/docs
+- type: Documentation
+  url: https://getanyapi.com/docs
+- type: APIReference
+  url: https://getanyapi.com/docs/api-reference/browse-the-api-catalog
+- type: GettingStarted
+  url: https://getanyapi.com/docs/quickstart
+- type: Support
+  url: https://getanyapi.com/contact
+- type: Blog
+  url: https://getanyapi.com/blog
+- type: GitHubOrganization
+  url: https://github.com/getanyapi-com
+- type: Pricing
+  url: https://getanyapi.com/pricing
+- type: SignUp
+  url: https://getanyapi.com/dashboard
+- type: TermsOfService
+  url: https://getanyapi.com/terms
+- type: PrivacyPolicy
+  url: https://getanyapi.com/privacy
+x-enrichment:
+  date: '2026-09-04'
+  status: enriched
+  artifacts_added: 35
+  pass: local-v3

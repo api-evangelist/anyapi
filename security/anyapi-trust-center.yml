@@ -1,0 +1,17 @@
+generated: '2026-09-04'
+method: probed
+probe: true
+present: false
+url: null
+certifications: []
+note: >-
+  NO trust center and NO published certifications. trust.getanyapi.com does not resolve;
+  getanyapi.com/security is a plain-language security-and-trust page (recorded in
+  security/anyapi-vulnerability-disclosure.yml) that names no certification whatsoever - no
+  SOC 2, ISO 27001, PCI DSS, HIPAA, FedRAMP, CSA STAR or GDPR attestation. A recorded absence,
+  not an unchecked field. NO Compliance or TrustCenter pointer is emitted for this record.
+probed:
+  - {url: 'https://trust.getanyapi.com', status: 0, result: DNS does not resolve}
+  - {url: 'https://getanyapi.com/security', status: 200, result: real page, zero certifications named}
+  - {url: 'https://getanyapi.com/terms', status: 200}
+  - {url: 'https://getanyapi.com/privacy', status: 200}

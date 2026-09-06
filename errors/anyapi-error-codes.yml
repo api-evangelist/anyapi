@@ -1,0 +1,55 @@
+generated: '2026-09-04'
+method: searched
+source: https://getanyapi.com/docs/mcp-server#errors
+note: >-
+  The provider publishes a named error-code registry with, uniquely, a BILLED column on every
+  code - whether that failure cost the caller money. This is the non-payments sibling of a
+  decline-code table and the single most useful error artifact this API publishes: an agent can
+  decide whether to retry from the code alone. "released" means an inline x402 payment was
+  released rather than settled. AnyAPI is not a card acquirer, so there is no decline-code
+  reference to capture; this registry is the equivalent.
+envelope_field: error (MCP tool errors carry the code as a short machine-readable prefix)
+billed_legend:
+  'No': The failure cost nothing.
+  No (released): The failure cost nothing; an inline payment was released rather than settled.
+  Unknown: Outcome unconfirmed - check get_balance. Repeating the same call within a few minutes cannot double charge.
+error_codes:
+  - {code: unauthorized, meaning: Missing or invalid AnyAPI key, billed: 'No', class: auth}
+  - {code: sku_not_found, meaning: The requested SKU does not exist, billed: 'No', class: caller}
+  - {code: invalid_input, meaning: Payload did not match the API's input schema, billed: 'No', class: caller, action: Compare the request with the schema from get_api; do not retry with guessed field names}
+  - {code: insufficient_balance, meaning: Wallet balance too low - top up to run, billed: 'No', class: billing}
+  - {code: key_cap_exceeded, meaning: The API key reached its configured spend cap, billed: 'No', class: billing}
+  - {code: grant_cap_exceeded, meaning: The authorization reached the spending limit its owner approved, billed: 'No', class: billing}
+  - {code: trial_cap_reached, meaning: The autonomous trial reached its cap, billed: 'No', class: billing, action: Follow the upgrade continuation - the response carries a live RFC 8628 device authorization}
+  - {code: duplicate_call_in_progress, meaning: An identical call is still running; wait a few seconds and repeat the same call to get its result, billed: 'No', class: idempotency}
+  - {code: duplicate_needs_review, meaning: An identical earlier call is being reconciled; retrying will not clear it, billed: 'No', class: idempotency, action: Contact support with the request id}
+  - {code: duplicate_call_conflict, meaning: An earlier call holds this call's duplicate-protection slot, billed: 'No', class: idempotency, action: Use a new idempotency key}
+  - {code: duplicate_protection_unavailable, meaning: AnyAPI could not check for a duplicate, so nothing ran; safe to retry, billed: 'No', class: idempotency}
+  - {code: provider_rejected_request, meaning: The upstream rejected this request; adjust it before retrying, billed: 'No', class: upstream}
+  - {code: provider_rate_limited, meaning: The upstream rate-limited the request; retry later, billed: 'No', class: upstream}
+  - {code: provider_timeout, meaning: Every available route ended in an upstream timeout, billed: No (released), class: upstream}
+  - {code: provider_transport_error, meaning: Every available route ended in a network failure, billed: No (released), class: upstream}
+  - {code: provider_failure, meaning: Every available route ended in an upstream service failure, billed: No (released), class: upstream}
+  - {code: malformed_upstream_response, meaning: The upstream response could not be safely normalized, billed: No (released), class: upstream}
+  - {code: unclassified_upstream_response, meaning: The upstream response is not recognized yet, billed: No (released), class: upstream}
+  - {code: all_providers_failed, meaning: Every provider for this API failed, billed: No (released), class: upstream}
+  - {code: no_providers, meaning: The API has no enabled providers, billed: 'No', class: catalog}
+  - {code: scrape_failed, meaning: The run ended without a confirmed outcome, billed: Unknown, class: upstream, action: Check get_balance; repeating the same call within a few minutes cannot double charge}
+  - {code: idempotency_in_progress, meaning: A same-key request is still running, billed: 'No', class: idempotency, source: openapi 409 response}
+  - {code: idempotency_conflict, meaning: The key was reused with different request semantics, billed: 'No', class: idempotency, source: openapi 409 response}
+  - {code: idempotency_needs_review, meaning: Stop retrying and contact AnyAPI support with X-Anyapi-Request-Id, billed: 'No', class: idempotency, source: openapi 409 response}
+not_an_error:
+  - >-
+    A normalized empty result such as `found: false` is NOT an error. The lookup ran and found
+    no matching entity; it is a successful, billable answer, because most sources charge for
+    the lookup whether or not they find anything. Read costUsd for what the call actually
+    cost - it is 0 when nothing was charged.
+service_outcomes:
+  note: Independent of payment settlement; reported on the durable Request snapshot.
+  values: [served, valid_negative, caller_error, service_failure, rejected]
+settlement_states:
+  values: [charged_undelivered, indeterminate]
+  note: >-
+    Present on the error envelope's `payment` object. charged_undelivered is the MPP case the
+    provider documents explicitly - settlement happened before execution and execution then
+    failed.

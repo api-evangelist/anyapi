@@ -1,0 +1,97 @@
+generated: '2026-09-04'
+method: searched
+status: published
+source: https://getanyapi.com/docs/mcp-server
+x-evidence:
+  probe: POST https://api.getanyapi.com/mcp {"jsonrpc":"2.0","id":1,"method":"tools/list"}
+  http_status: 200
+  content_type: text/event-stream
+  authenticated: false
+  fetched: '2026-09-04'
+  saved: mcp/anyapi-mcp-tools-list.json
+  note: >-
+    tools/list answered 200 ANONYMOUSLY and returned all ten tools with full inputSchema and
+    outputSchema. The response also carried a WWW-Authenticate: Bearer challenge advertising
+    scope="run balance:read" and resource_metadata pointing at
+    /.well-known/oauth-protected-resource/mcp, so discovery is open while execution is gated.
+    The tool schemas below are the live ones, not names read off a docs page.
+deployment:
+  mode: remote
+  endpoint: https://api.getanyapi.com/mcp
+  auth: oauth
+  auth_note: >-
+    OAuth 2.1 (authorization_code + PKCE S256, plus RFC 8628 device code) via the discovery
+    document at /.well-known/oauth-authorization-server, with dynamic client registration at
+    /oauth/register and token_endpoint_auth_methods_supported ["none"]. Hosted Claude and
+    ChatGPT connect by URL and complete OAuth; non-OAuth MCP clients may instead send a
+    Bearer aa_live_ API key. An agent can mint its own trial key with no human by POSTing to
+    https://api.getanyapi.com/agent/signup.
+  verified: probed
+  local_stdio: false
+  local_stdio_note: >-
+    No stdio MCP package is published. The first-party `anyapi` CLI (npm anyapi-cli) is a
+    shell tool, not an MCP stdio server, though `anyapi init` can register this remote
+    endpoint with a client.
+server:
+  name: AnyAPI
+  version: 1.0.0
+  transport: streamable-http
+  url: https://api.getanyapi.com/mcp
+  server_card: well-known/anyapi-mcp-server-card.json
+  server_card_url: https://getanyapi.com/.well-known/mcp/server-card.json
+  docs: https://getanyapi.com/docs/mcp-server
+tool_count: 10
+tools:
+  - name: list_apis
+    description: Browse available AnyAPI APIs as lightweight summaries (id, name, category, USD pricing); descriptions and schemas omitted so it stays cheap across the whole catalog.
+    inputs: [category, context]
+    source_operation: openapi/anyapi-gateway-openapi.json#listApis
+  - name: search_apis
+    description: Ranked semantic and keyword search across name, slug and description, returning matches with descriptions.
+    inputs: [query, category, platform, limit, context]
+    source_operation: openapi/anyapi-gateway-openapi.json#searchCatalog
+  - name: get_api
+    description: Full definition of one API by SKU including normalized input/output JSON Schema, per-request and per-1,000 USD pricing on every lane, and trailing-30-day latency p50/p95/p99 with sample count.
+    inputs: [sku_id, context]
+    source_operation: openapi/anyapi-gateway-openapi.json#getApi
+  - name: quote_api
+    description: Price and validate a run_api call BEFORE running it. Free, no key required, nothing charged or executed.
+    inputs: [sku_id, input, context]
+    source_operation: null
+    note: No matching operation in the published OpenAPI; see mcp/anyapi-tool-crosswalk.yml.
+  - name: run_api
+    description: Execute an API by SKU with a normalized input payload; returns output, provider, costUsd, items, resultId, with context-budget controls.
+    inputs: [sku_id, input, fields, max_items, summary, jq, context]
+    source_operation: openapi/anyapi-gateway-openapi.json#<363 run operations>
+  - name: get_request
+    description: Inspect or resume a durable AnyAPI request returned by run_api; reads stored state and never repeats the paid provider dispatch.
+    inputs: [request_id, context]
+    source_operation: openapi/anyapi-gateway-openapi.json#getRequest
+  - name: read_result
+    description: Re-read a prior paid run for free within roughly a 15-minute window, re-shaped with fields/max_items/summary/jq.
+    inputs: [result_id, fields, max_items, summary, jq, context]
+    source_operation: openapi/anyapi-gateway-openapi.json#getResult
+  - name: get_balance
+    description: Remaining USD wallet balance for the key supplied as a Bearer token.
+    inputs: [context]
+    source_operation: openapi/anyapi-gateway-openapi.json#getBalance
+  - name: report_bug
+    description: Report that a run returned wrong, empty or malformed data for input believed valid.
+    inputs: [summary, details, sku, request_id, contact, context]
+    source_operation: null
+  - name: send_feedback
+    description: Report a non-defect - a missing API, a missing field, a confusing part of the product.
+    inputs: [summary, details, sku, request_id, contact, context]
+    source_operation: null
+observations:
+  - >-
+    Every tool requires a `context` parameter of 15-25 words explaining why the tool is being
+    called, in third person, excluding credentials. It is a required field on all ten tools and
+    is used by the provider for intent analytics - an unusual and explicit agent-telemetry
+    contract worth recording.
+  - >-
+    Tools carry MCP annotations (readOnlyHint, destructiveHint, idempotentHint, openWorldHint,
+    title). The read-side tools are annotated readOnlyHint:true, destructiveHint:false.
+  - >-
+    The server card advertises only 7 tools; the live tools/list returns 10. report_bug,
+    send_feedback and get_request are live but absent from the published card.

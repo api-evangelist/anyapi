@@ -1,0 +1,51 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://api.getanyapi.com/v1",
+      "service-desc": [
+        {
+          "href": "https://api.getanyapi.com/openapi.json",
+          "type": "application/json",
+          "title": "AnyAPI OpenAPI document"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://getanyapi.com/docs",
+          "type": "text/html",
+          "title": "AnyAPI documentation"
+        }
+      ],
+      "service-meta": [
+        {
+          "href": "https://getanyapi.com/.well-known/anyapi.json",
+          "type": "application/json",
+          "title": "AnyAPI agent-discovery document"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://api.getanyapi.com/healthz",
+          "title": "AnyAPI gateway health"
+        }
+      ]
+    },
+    {
+      "anchor": "https://api.getanyapi.com/mcp",
+      "service-desc": [
+        {
+          "href": "https://getanyapi.com/.well-known/mcp/server-card.json",
+          "type": "application/json",
+          "title": "AnyAPI MCP server card"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://getanyapi.com/docs/mcp",
+          "type": "text/html",
+          "title": "AnyAPI MCP documentation"
+        }
+      ]
+    }
+  ]
+}

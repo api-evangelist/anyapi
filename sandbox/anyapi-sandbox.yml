@@ -1,0 +1,66 @@
+generated: '2026-09-04'
+method: searched
+source: >-
+  https://getanyapi.com/docs/agent-self-signup, https://getanyapi.com/docs/quickstart,
+  https://getanyapi.com/docs/mcp-server and mcp/anyapi-mcp-tools-list.json
+separate_sandbox_environment: false
+note: >-
+  There is no test-mode host, no sk_test/sk_live key split and no magic test values, and that
+  is structurally correct for this API: every call reaches a real third-party source and
+  returns real data, so a fake mode would return nothing useful. What the provider ships
+  instead is a genuinely equivalent safety surface - free pre-flight pricing and validation, a
+  free result re-read, a capped autonomous trial credential, and a hard per-request cost
+  ceiling. Recorded as what it is, not forced into a test-credentials shape.
+free_preflight:
+  - name: quote_api / POST /v1/apis/{sku}/quote
+    cost: free
+    key_required: false
+    effect: >-
+      Prices the exact call and validates the input against the SKU schema. Nothing is executed
+      and nothing is charged. Returns maxCostUsd, minCostUsd and the base/per-item breakdown.
+    note: The closest thing to a dry run this API has, and it needs no credential at all.
+  - name: GET /catalog and GET /catalog/search
+    cost: free
+    key_required: false
+    effect: Full catalog with per-lane USD pricing and measured 30-day uptime/latency, anonymously.
+  - name: MCP tools/list
+    cost: free
+    key_required: false
+    effect: Full tool set with inputSchema and outputSchema, anonymously (verified 200 on 2026-09-04).
+free_reread:
+  endpoint: GET /v1/results/{id}
+  tool: read_result
+  cost: free
+  window: about 15 minutes
+  effect: >-
+    Re-read and re-shape a prior paid run without paying again. Scoped to the customer that
+    paid for it. Lets an agent iterate on fields/max_items/summary/jq against real data at zero
+    marginal cost - the practical substitute for a sandbox fixture.
+trial_credential:
+  endpoint: POST https://api.getanyapi.com/agent/signup
+  method: POST
+  body: '{"label": "optional"}'
+  human_required: false
+  account_created: false
+  budget_usd: about 0.05
+  expiry: 7 days if never upgraded
+  key_prefix: aa_live_
+  secret_shown: once
+  returns: [secret, keyId, capUsd, expiresAt, notice, clientId, upgrade]
+  exhaustion: HTTP 402 trial_cap_reached, carrying an upgrade link and a live RFC 8628 device authorization for human approval
+  note: >-
+    A capped real credential rather than a fake one. Nothing lingers and nothing is owed if it
+    is never upgraded.
+signup_allowance:
+  free_requests: about 100 on signup
+  source: https://getanyapi.com/pricing
+cost_ceilings:
+  - {control: max_cost_usd, scope: per request, effect: 'the request is refused before it runs if no route is at or below the ceiling; nothing is charged and the error names the cheapest available price'}
+  - {control: 'limitUsd + limitInterval (daily/weekly/monthly)', scope: per key, effect: 402 before any spend}
+  - {control: 'tryMaxItems (published per SKU in GET /catalog, e.g. 3)', scope: per SKU, effect: caps items on a try/trial run}
+test_values:
+  published: false
+  note: >-
+    NONE. No test card numbers, test IBANs, magic identifiers or fixture tokens are published,
+    and none are invented here. The provider's own guidance is to pick a cheap real SKU and
+    quote it first.

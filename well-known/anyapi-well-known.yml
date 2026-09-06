@@ -1,0 +1,141 @@
+generated: '2026-09-04'
+method: probed
+source: direct HTTPS probes of the named /.well-known/ path list on every host this record knows
+path_echo_control: passed
+note: >-
+  Three hosts probed: the API host (api.getanyapi.com, the OpenAPI servers[] host and the
+  apis.yml baseURL), the registrable domain (getanyapi.com, the Website/docs host), and www.
+  A negative-control path that cannot exist returned 404 on all three, so no host echoes
+  paths and every 200 below is a real document. getanyapi.com is a Next.js SPA whose
+  not-found route answers 404 with a 194,299-byte HTML shell; those rows are recorded as the
+  404s they are. The api-catalog on the website is a genuine RFC 9727 linkset
+  (application/linkset+json) and it names two further first-party discovery documents that
+  are NOT on the standard well-known list — /.well-known/anyapi.json (an agent-discovery
+  document) and /.well-known/mcp/server-card.json (an MCP server card) — both fetched and
+  saved here because the provider's own catalog points at them.
+hit_count: 5
+hosts:
+  - host: https://api.getanyapi.com
+    documents:
+      - path: /.well-known/oauth-authorization-server
+        status: 200
+        file: anyapi-oauth-authorization-server.json
+      - path: /.well-known/oauth-protected-resource
+        status: 200
+        file: anyapi-oauth-protected-resource.json
+      - path: /.well-known/security.txt
+        status: 404
+      - path: /.well-known/openid-configuration
+        status: 404
+      - path: /.well-known/api-catalog
+        status: 404
+      - path: /.well-known/api-catalog.json
+        status: 404
+      - path: /.well-known/ai-plugin.json
+        status: 404
+      - path: /.well-known/agent-card.json
+        status: 404
+      - path: /.well-known/agent.json
+        status: 404
+      - path: /.well-known/apis.json
+        status: 404
+      - path: /apis.json
+        status: 404
+      - path: /apis.yml
+        status: 404
+      - path: /.well-known/aauth-resource.json
+        status: 404
+      - path: /.well-known/ucp.json
+        status: 404
+      - path: /.well-known/acp.json
+        status: 404
+      - path: /.well-known/anyapi-negative-control-7f3ab91c.json
+        status: 404
+  - host: https://getanyapi.com
+    documents:
+      - path: /.well-known/api-catalog
+        status: 200
+        file: anyapi-api-catalog.json
+      - path: /.well-known/anyapi.json
+        status: 200
+        file: anyapi-agent-discovery.json
+      - path: /.well-known/mcp/server-card.json
+        status: 200
+        file: anyapi-mcp-server-card.json
+      - path: /.well-known/security.txt
+        status: 404
+      - path: /.well-known/openid-configuration
+        status: 404
+      - path: /.well-known/oauth-authorization-server
+        status: 404
+      - path: /.well-known/oauth-protected-resource
+        status: 404
+      - path: /.well-known/api-catalog.json
+        status: 404
+      - path: /.well-known/ai-plugin.json
+        status: 404
+      - path: /.well-known/agent-card.json
+        status: 404
+      - path: /.well-known/agent.json
+        status: 404
+      - path: /.well-known/apis.json
+        status: 404
+      - path: /apis.json
+        status: 404
+      - path: /apis.yml
+        status: 404
+      - path: /.well-known/aauth-resource.json
+        status: 404
+      - path: /.well-known/ucp.json
+        status: 404
+      - path: /.well-known/acp.json
+        status: 404
+      - path: /.well-known/anyapi-negative-control-7f3ab91c.json
+        status: 404
+  - host: https://www.getanyapi.com
+    documents:
+      - path: /.well-known/api-catalog
+        status: 200
+        file: anyapi-api-catalog.json
+      - path: /.well-known/security.txt
+        status: 404
+      - path: /.well-known/openid-configuration
+        status: 404
+      - path: /.well-known/oauth-authorization-server
+        status: 404
+      - path: /.well-known/oauth-protected-resource
+        status: 404
+      - path: /.well-known/api-catalog.json
+        status: 404
+      - path: /.well-known/ai-plugin.json
+        status: 404
+      - path: /.well-known/agent-card.json
+        status: 404
+      - path: /.well-known/agent.json
+        status: 404
+      - path: /.well-known/apis.json
+        status: 404
+      - path: /apis.json
+        status: 404
+      - path: /apis.yml
+        status: 404
+      - path: /.well-known/aauth-resource.json
+        status: 404
+      - path: /.well-known/ucp.json
+        status: 404
+      - path: /.well-known/acp.json
+        status: 404
+      - path: /.well-known/anyapi-negative-control-7f3ab91c.json
+        status: 404
+agent_card:
+  found: false
+  note: >-
+    No A2A agent card. /.well-known/agent-card.json and the legacy /.well-known/agent.json
+    both 404 on all three hosts. NOTHING was authored — the provider's agent surface is MCP,
+    not A2A. See mcp/anyapi-mcp.yml.
+security_txt:
+  found: false
+  note: >-
+    No RFC 9116 security.txt on any host. The provider does publish a vulnerability-reporting
+    contact, but in prose on https://getanyapi.com/security section 6, not at the well-known
+    path — see security/anyapi-vulnerability-disclosure.yml.

@@ -1,0 +1,89 @@
+generated: '2026-09-04'
+method: searched
+source: https://getanyapi.com/docs/sdks + registry metadata endpoints (registry.npmjs.org, pypi.org)
+note: >-
+  All seven packages are first-party, published from the getanyapi-com GitHub organization and
+  linked from the provider's own SDK/CLI/integration documentation. The TypeScript and Python
+  SDKs are generated from the same OpenAPI document that serves api.getanyapi.com/openapi.json
+  and share a version line (0.35.3), so SDK currency tracks the catalog directly.
+packages:
+  - language: javascript
+    registry: npm
+    name: '@getanyapi/sdk'
+    url: https://www.npmjs.com/package/@getanyapi/sdk
+    install: npm install @getanyapi/sdk
+    official: true
+    version: 0.35.3
+    published: '2026-09-01'
+    repository: https://github.com/getanyapi-com/sdks
+    note: Typed TypeScript SDK, one method per catalog SKU, generated from the OpenAPI document.
+  - language: python
+    registry: pypi
+    name: getanyapi
+    url: https://pypi.org/project/getanyapi/
+    install: pip install getanyapi
+    official: true
+    version: 0.35.3
+    published: '2026-09-01'
+    repository: https://github.com/getanyapi-com/sdks
+    note: Typed Python SDK (sync and async), same generated version line as the TypeScript SDK.
+  - language: javascript
+    registry: npm
+    name: anyapi-cli
+    url: https://www.npmjs.com/package/anyapi-cli
+    install: npx -y anyapi-cli@latest init
+    official: true
+    version: 0.8.1
+    published: '2026-08-27'
+    repository: https://github.com/getanyapi-com/cli
+    binary: anyapi
+    note: First-party CLI; command surface captured in cli/anyapi-cli.yml.
+  - language: javascript
+    registry: npm
+    name: n8n-nodes-anyapi
+    url: https://www.npmjs.com/package/n8n-nodes-anyapi
+    install: npm install n8n-nodes-anyapi
+    official: true
+    version: 0.3.0
+    published: '2026-08-15'
+    repository: https://github.com/getanyapi-com/n8n-nodes-anyapi
+    note: n8n community node published by the provider.
+  - language: python
+    registry: pypi
+    name: langchain-anyapi
+    url: https://pypi.org/project/langchain-anyapi/
+    install: pip install langchain-anyapi
+    official: true
+    version: 0.1.0
+    published: '2026-09-04'
+    repository: https://github.com/getanyapi-com/integrations
+    note: LangChain tool binding, from the provider's own integrations repo.
+  - language: python
+    registry: pypi
+    name: llama-index-tools-anyapi
+    url: https://pypi.org/project/llama-index-tools-anyapi/
+    install: pip install llama-index-tools-anyapi
+    official: true
+    version: 0.1.0
+    published: '2026-09-04'
+    repository: https://github.com/getanyapi-com/integrations
+    note: LlamaIndex tool spec, from the provider's own integrations repo.
+  - language: python
+    registry: pypi
+    name: anyapi-haystack
+    url: https://pypi.org/project/anyapi-haystack/
+    install: pip install anyapi-haystack
+    official: true
+    version: 0.1.0
+    published: '2026-09-04'
+    repository: https://github.com/getanyapi-com/integrations
+    note: Haystack components and tools, from the provider's own integrations repo.
+registries_checked:
+  - {registry: npm, result: 3 first-party packages}
+  - {registry: pypi, result: 4 first-party packages}
+  - {registry: rubygems, result: none}
+  - {registry: crates.io, result: none}
+  - {registry: nuget, result: none}
+  - {registry: maven-central, result: none}
+  - {registry: pkg.go.dev, result: none}
+  - {registry: packagist, result: none}

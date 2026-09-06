@@ -1,0 +1,58 @@
+generated: '2026-09-04'
+method: probed
+source: https://api.getanyapi.com/.well-known/oauth-authorization-server
+docs: https://getanyapi.com/docs/mcp-server
+note: >-
+  The OpenAPI declares only apiKey and http-bearer security schemes, so derive-oauth-scopes.py
+  correctly found nothing there. The OAuth surface is real but lives OUTSIDE the spec, in the
+  RFC 8414 authorization-server metadata served at the API host, and it is what an MCP client
+  actually authenticates against. Both scopes below are read verbatim from that document's
+  scopes_supported, and are corroborated by the RFC 9728 protected-resource document and by the
+  WWW-Authenticate challenge the MCP endpoint returns (scope="run balance:read").
+schemes:
+  - name: OAuth2
+    source: https://api.getanyapi.com/.well-known/oauth-authorization-server
+    issuer: https://api.getanyapi.com
+    dynamic_client_registration: https://api.getanyapi.com/oauth/register
+    token_endpoint_auth_methods_supported: [none]
+    code_challenge_methods_supported: [S256]
+    response_types_supported: [code]
+    flows:
+      - flow: authorizationCode
+        authorizationUrl: https://api.getanyapi.com/oauth/authorize
+        tokenUrl: https://api.getanyapi.com/oauth/token
+        pkce_required: true
+      - flow: refreshToken
+        tokenUrl: https://api.getanyapi.com/oauth/token
+      - flow: deviceCode
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+        deviceAuthorizationUrl: https://api.getanyapi.com/oauth/device_authorization
+        rfc: RFC 8628
+    revocation_endpoint: https://api.getanyapi.com/oauth/revoke
+protected_resources:
+  - resource: https://api.getanyapi.com/mcp
+    authorization_servers: [https://api.getanyapi.com]
+    scopes_supported: [run, balance:read]
+    source: https://api.getanyapi.com/.well-known/oauth-protected-resource
+    rfc: RFC 9728
+scopes:
+  - scope: run
+    description: >-
+      Execute APIs - the run_api tool and POST /v1/run/{sku}. This is the spending scope; a
+      grant carries the spending limit its owner approved, and exceeding it returns the
+      grant_cap_exceeded error.
+    flows: [authorizationCode, deviceCode]
+    sources: [/.well-known/oauth-authorization-server, /.well-known/oauth-protected-resource]
+  - scope: balance:read
+    description: Read the remaining USD wallet balance - the get_balance tool and GET /v1/balance.
+    flows: [authorizationCode, deviceCode]
+    sources: [/.well-known/oauth-authorization-server, /.well-known/oauth-protected-resource]
+observations:
+  - >-
+    Only two scopes, and they split exactly along the line that matters to an agent's owner:
+    spending money versus reading how much is left. Discovery (list/search/describe/quote)
+    needs no scope at all and no credential - those paths are anonymous.
+  - >-
+    token_endpoint_auth_methods_supported is ["none"] with dynamic client registration open,
+    which is the MCP-client profile: a public client registers itself and authenticates the
+    user with PKCE rather than holding a client secret.

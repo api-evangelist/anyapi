@@ -1,0 +1,100 @@
+{
+  "name": "AnyAPI",
+  "description": "Unified marketplace for scraping and data APIs: one key, one USD wallet, 363 APIs through a single normalized interface with automatic failover.",
+  "url": "https://getanyapi.com",
+  "documentation": "https://getanyapi.com/docs",
+  "skill": "https://getanyapi.com/SKILL.md",
+  "llmsTxt": "https://getanyapi.com/llms.txt",
+  "pricingUnit": "USD",
+  "auth": {
+    "type": "bearer",
+    "keyPrefix": "aa_live_",
+    "credentialPrefixes": [
+      "aa_live_",
+      "aa_at_"
+    ],
+    "obtainAt": "https://getanyapi.com/dashboard/keys"
+  },
+  "signup": {
+    "description": "Free trial key for agents - no human sign-in, no account created. POST to mint an aa_live_ trial key instantly (returned once) with about $0.05 of requests; if never upgraded it self-expires in 7 days, so nothing lingers and nothing is owed. When the trial budget is spent, calls return HTTP 402 trial_cap_reached with an upgrade link; agents with the CLI run \"anyapi connect\" (OAuth, one consent URL) so the human can approve continued spend.",
+    "url": "https://api.getanyapi.com/agent/signup",
+    "method": "POST",
+    "body": {
+      "label": "optional"
+    },
+    "returns": [
+      "secret",
+      "keyId",
+      "capUsd",
+      "expiresAt",
+      "notice",
+      "clientId",
+      "upgrade"
+    ]
+  },
+  "cli": {
+    "package": "anyapi-cli",
+    "bin": "anyapi",
+    "install": "npx -y anyapi-cli@latest init",
+    "repository": "https://github.com/getanyapi-com/cli",
+    "recommendedFor": "agents with a shell (Claude Code, Cursor, Codex); keeps tool schemas out of context and writes results to files",
+    "authOrder": [
+      "--api-key flag",
+      "ANYAPI_API_KEY env",
+      "~/.anyapi/config.json",
+      "trial self-signup"
+    ],
+    "commands": [
+      "anyapi signup [--label]",
+      "anyapi login (cross-device OAuth account sign-in)",
+      "anyapi login --api-key aa_live_...",
+      "anyapi search <query>",
+      "anyapi list [--category]",
+      "anyapi describe <sku>",
+      "anyapi run <sku> --input '<json>' [--jq <expr>] [--fields a,b] [--max-items N] [--summary] [-o path] [--json]",
+      "anyapi view [path] [--last [sku]] [--jq <expr>] [--fields a,b] [--max-items N] [--summary] [--json]",
+      "anyapi balance",
+      "anyapi connect (anyapi-cli >= 0.3.0; upgrade past the trial via OAuth)",
+      "anyapi init [--all] [--yes]"
+    ],
+    "defaultOutput": ".anyapi/<sku>-<timestamp>.json"
+  },
+  "interfaces": {
+    "mcp": {
+      "url": "https://api.getanyapi.com/mcp",
+      "transport": "streamable-http",
+      "recommendedFor": "hosted Claude, ChatGPT, and other clients without a shell; connect by URL and complete OAuth",
+      "tools": [
+        "list_apis",
+        "search_apis",
+        "get_api",
+        "quote_api",
+        "run_api",
+        "get_request",
+        "read_result",
+        "get_balance",
+        "report_bug",
+        "send_feedback"
+      ]
+    },
+    "rest": {
+      "baseUrl": "https://api.getanyapi.com/v1",
+      "run": "POST https://api.getanyapi.com/v1/run/{sku}",
+      "list": "GET https://api.getanyapi.com/v1/apis?category={category}",
+      "describe": "GET https://api.getanyapi.com/v1/apis/{sku}",
+      "balance": "GET https://api.getanyapi.com/v1/balance",
+      "catalog": "https://api.getanyapi.com/catalog",
+      "search": "https://api.getanyapi.com/catalog/search?q={query}",
+      "openapi": "https://api.getanyapi.com/openapi.json"
+    }
+  },
+  "contextControls": {
+    "description": "Optional run_api parameters that shrink the response to fit an agent context window. They do not change what is charged.",
+    "params": [
+      "fields",
+      "max_items",
+      "summary",
+      "jq"
+    ]
+  }
+}

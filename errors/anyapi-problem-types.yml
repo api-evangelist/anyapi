@@ -1,0 +1,90 @@
+generated: '2026-09-04'
+method: derived
+source: openapi/anyapi-gateway-openapi.json (4xx/5xx responses) enriched from https://getanyapi.com/docs/mcp-server
+format: custom-json
+rfc9457: false
+rfc9457_note: >-
+  Not RFC 9457. Error responses are application/json with a bespoke envelope, not
+  application/problem+json, and carry no type/title/detail/instance. The envelope does carry a
+  `payment` object (rail, settlementState, costUsd) that RFC 9457 has no equivalent for, which
+  lets a caller distinguish a failure that cost money from one that did not.
+envelope:
+  required: [error]
+  fields:
+    error: Customer-safe error message.
+    code: Stable machine-readable error code when the endpoint defines one.
+    requestId: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Absent on endpoints that do not execute a run.
+    payment: '{rail, settlementState (charged_undelivered | indeterminate), costUsd}'
+coverage:
+  operations_with_4xx: 368
+  operations_with_5xx: 363
+  operations_total: 370
+problems:
+  - status: 400
+    title: Bad request
+    detail: Input did not match the schema, or the upstream rejected the request.
+    billed: false
+    source_operation: openapi/anyapi-gateway-openapi.json (364 operations)
+  - status: 401
+    title: Unauthorized
+    detail: Missing or invalid API key. Also returned for a disabled key ("this API key is disabled") and an expired key ("this API key has expired").
+    billed: false
+    remediation: Send a valid aa_live_ key as Authorization Bearer or X-API-Key, or complete OAuth.
+    source_operation: openapi/anyapi-gateway-openapi.json (368 operations)
+  - status: 402
+    title: Payment required
+    detail: >-
+      Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials
+      receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+    billed: false
+    headers: [PAYMENT-REQUIRED, WWW-Authenticate]
+    remediation: >-
+      Top up the wallet, raise the key's limitUsd, raise max_cost_usd, or settle the inline
+      x402/MPP challenge and retry.
+    source_operation: openapi/anyapi-gateway-openapi.json (363 run operations)
+  - status: 404
+    title: Not found
+    detail: Unknown SKU, or the upstream had no matching resource. Request and result IDs owned by another customer also return 404 rather than 403.
+    billed: false
+    source_operation: openapi/anyapi-gateway-openapi.json (366 operations)
+  - status: 409
+    title: Idempotency collision
+    detail: >-
+      idempotency_in_progress - retry after the Retry-After delay. idempotency_conflict - use a
+      new key for different request semantics. idempotency_needs_review - stop retrying and
+      contact support with X-Anyapi-Request-Id.
+    billed: false
+    remediation: See conventions/anyapi-conventions.yml idempotency.conflict_semantics.
+    source_operation: openapi/anyapi-gateway-openapi.json (363 run operations)
+  - status: 422
+    title: Unsupported target for this API
+    detail: >-
+      The request was well formed but this API cannot serve the requested target site; the
+      body's `alternatives` array lists the AnyAPI APIs that can.
+    billed: false
+    remediation: Re-dispatch to one of the SKUs named in `alternatives`.
+    source_operation: openapi/anyapi-gateway-openapi.json (363 run operations)
+  - status: 429
+    title: Upstream rate limited
+    detail: >-
+      The UPSTREAM source was rate limited - not an AnyAPI caller quota. Inspect `payment` when
+      present before deciding whether to retry.
+    billed: false
+    source_operation: openapi/anyapi-gateway-openapi.json (363 run operations)
+  - status: 500
+    title: Internal error
+    detail: An internal error prevented completion. Inspect payment when present before retrying.
+    billed: unknown
+    source_operation: openapi/anyapi-gateway-openapi.json (363 run operations)
+  - status: 502
+    title: All providers failed
+    detail: >-
+      Every provider failed with a server/transport error, or inline payment settlement could
+      not be confirmed; inspect `payment` when present before retrying.
+    billed: unknown
+    source_operation: openapi/anyapi-gateway-openapi.json (363 run operations)
+  - status: 504
+    title: Gateway timeout
+    detail: Returned on the three catalog/discovery operations that can time out.
+    billed: false
+    source_operation: openapi/anyapi-gateway-openapi.json (3 operations)

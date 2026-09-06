@@ -1,0 +1,47 @@
+generated: '2026-09-04'
+method: searched
+source: >-
+  https://getanyapi.com/docs, https://getanyapi.com/docs/sdks,
+  https://getanyapi.com/docs/mcp-server and openapi/anyapi-gateway-openapi.json
+limit_count: 0
+limit_count_note: >-
+  AnyAPI publishes NO rate limit of its own - no requests-per-second, per-minute or per-day
+  figure appears anywhere in the docs, the OpenAPI or the site, and no RateLimit-* or
+  X-RateLimit-* response headers are declared or observed. This is an honest zero, and it is
+  structural rather than an oversight: throughput here is governed economically, by the wallet
+  balance, per-key spend limits and the per-request max_cost_usd ceiling, instead of by a
+  request quota. An agent's budget is the limiter.
+limits: []
+exhaustion_semantics:
+  economic:
+    - {status: 402, code: insufficient_balance, meaning: wallet balance too low, billed: false}
+    - {status: 402, code: key_cap_exceeded, meaning: the API key reached its configured spend cap, billed: false}
+    - {status: 402, code: grant_cap_exceeded, meaning: the OAuth authorization reached its owner-approved spending limit, billed: false}
+    - {status: 402, code: trial_cap_reached, meaning: the autonomous trial reached its cap, billed: false, remediation: response carries an upgrade link and a live RFC 8628 device authorization}
+  upstream:
+    - status: 429
+      code: provider_rate_limited
+      meaning: >-
+        The UPSTREAM data source rate-limited the request - NOT an AnyAPI caller quota. Inspect
+        the `payment` object when present before deciding whether to retry.
+      billed: false
+response_headers:
+  rate_limit_headers: []
+  rate_limit_headers_note: None. Neither the IETF RateLimit-* draft headers nor X-RateLimit-* are declared in the spec or returned.
+  retry_after:
+    present: true
+    scope: >-
+      Retry-After is returned on 202 durable-request responses and on 409
+      idempotency_in_progress, i.e. as a work-in-progress backoff signal rather than a
+      quota-exhaustion signal. The durable-request body carries the same value as
+      retryAfterSeconds.
+client_behavior:
+  sdks: >-
+    The first-party TypeScript and Python SDKs map 429 to RateLimitedError and retry it
+    automatically (429 and 5xx are the only statuses they retry).
+  docs: https://getanyapi.com/docs/sdks
+concurrency:
+  documented_limit: null
+  note: >-
+    No concurrency cap is published. Concurrent calls carrying the same Idempotency-Key, SKU
+    and input are collapsed onto one active Request rather than rejected.

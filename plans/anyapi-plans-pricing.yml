@@ -1,0 +1,60 @@
+generated: '2026-09-04'
+method: searched
+source: https://getanyapi.com/pricing
+plan_count: 0
+plan_count_note: >-
+  ZERO subscription plans, and that is the product rather than a gap. AnyAPI sells no tiers, no
+  seats and no monthly commitment: it is a prepaid USD wallet billed per successful request, at
+  a per-SKU price the catalog publishes. There is nothing tier-shaped to enumerate, so
+  plan_count is an honest 0 rather than an omitted file.
+pricing_model:
+  type: prepaid-wallet-pay-per-request
+  currency: USD
+  unit: per successful request, quoted per request and per 1,000 requests
+  subscriptions: false
+  minimums: false
+  seats: false
+  free_allowance: about 100 free requests on signup
+  agent_trial: >-
+    About $0.05 of requests, minted with no human and no account via POST
+    https://api.getanyapi.com/agent/signup; self-expires in 7 days if never upgraded.
+  billing_note: >-
+    A normalized empty result (found:false) is a successful, billable answer, because most
+    upstream sources charge for the lookup whether or not they find anything. costUsd reports
+    what a call actually cost and is 0 when nothing was charged.
+wallet:
+  topup_min_usd: 10
+  topup_max_usd: 10000
+  topup_fee: none - every dollar paid adds one dollar of spending power
+  processor: Stripe hosted checkout
+  auto_topup: 'Configurable threshold and amount via GET/POST /v1/billing/auto-topup; requires a saved reusable payment method'
+  refunds: Full and partial refunds reduce the wallet by the refunded amount; a dispute reduces it when opened, even to a negative balance.
+per_request_pricing:
+  machine_readable: true
+  endpoints:
+    - {url: 'https://api.getanyapi.com/catalog', auth: none, returns: 'per-SKU and per-lane pricing (baseUsd, perUnitUsd, maxUsd, maxPer1kUsd) plus measured 30-day health'}
+    - {url: 'https://api.getanyapi.com/v1/apis/{sku}', auth: key, returns: full contract with nested USD pricing and latency percentiles}
+    - {tool: quote_api, auth: none, returns: 'maxCostUsd, minCostUsd and the base/per-item breakdown for a specific input, free, nothing executed'}
+  models_observed: [linear]
+  note: >-
+    Pricing is genuinely machine-readable and free to read without a key - unusual, and the
+    reason an agent can price a whole multi-step chain before running any of it.
+  published_examples:
+    - {sku: ahrefs.backlinks, per_request_usd: 0.0215, per_1k_usd: 21.5, source: 'GET /catalog, fetched 2026-09-04'}
+    - {platform: Instagram, from_per_1k_usd: 0.90, source: 'https://getanyapi.com/pricing'}
+    - {platform: X/Twitter, from_per_1k_usd: 0.18, source: 'https://getanyapi.com/pricing'}
+    - {platform: Google Maps, from_per_1k_usd: 1.75, source: 'https://getanyapi.com/pricing'}
+    - {platform: Spotify, from_per_1k_usd: 2.00, source: 'https://getanyapi.com/pricing'}
+spend_controls:
+  - {control: max_cost_usd, scope: per request, effect: 'a route charging more is not used; if none qualifies the request is refused before running, nothing is charged, and the error names the cheapest available price'}
+  - {control: limitUsd + limitInterval, scope: per API key, effect: 'daily, weekly or monthly UTC reset windows, or a lifetime cap; a breaching request is rejected with 402 and nothing is charged'}
+  - {control: wallet balance, scope: account, effect: insufficient_balance}
+  - {control: OAuth grant cap, scope: per authorization, effect: grant_cap_exceeded}
+  - {control: trial cap, scope: per trial key, effect: trial_cap_reached with an upgrade continuation}
+operator_side:
+  note: >-
+    AnyAPI also runs a supply side - operators host an endpoint for a catalog API and earn USD
+    per request won. The operator sets the customer price; the platform takes a commission per
+    sale; earnings pay out through Stripe from $50, free. The exact commission percentage is
+    not published on the public page.
+  docs: https://getanyapi.com/docs/sell/pricing-fees-payouts

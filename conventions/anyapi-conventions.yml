@@ -1,0 +1,177 @@
+generated: '2026-09-04'
+method: searched
+source: >-
+  https://getanyapi.com/docs/durable-requests, https://getanyapi.com/docs/pagination,
+  https://getanyapi.com/docs/api-keys, https://getanyapi.com/docs/speed-and-price,
+  https://getanyapi.com/docs/agent-payments, and openapi/anyapi-gateway-openapi.json
+authentication:
+  style: bearer-or-api-key
+  header: "Authorization: Bearer <key>, or X-API-Key: <key>"
+  key_prefix: aa_live_
+  credential_prefixes: [aa_live_, aa_at_]
+  oauth: OAuth 2.1 authorization_code + PKCE and RFC 8628 device code, for MCP clients
+  anonymous_paths: [GET /catalog, GET /catalog/search]
+  detail: authentication/anyapi-authentication.yml
+idempotency:
+  supported: true
+  coverage: full
+  mechanism: header
+  header: Idempotency-Key
+  applies_to: >-
+    All 363 POST /v1/run/{sku} operations. Verified mechanically against the spec: 363 of 363
+    mutating (POST) operations declare the Idempotency-Key header parameter. The seven
+    remaining operations are GETs with no mutating semantics.
+  retention: 24 hours, scoped to the customer
+  key_constraints: {minLength: 1, maxLength: 255}
+  response_header: Idempotency-Replayed
+  response_header_semantics: >-
+    "false" means the key was claimed and the run executed freshly. "true" means it replayed a
+    prior identical run and was NOT charged again. ABSENT means either no key was sent or the
+    serving gateway does not honor keys, so a retry could be charged twice - the provider
+    documents the absent case explicitly rather than leaving it implied.
+  conflict_semantics:
+    - {status: 409, code: idempotency_in_progress, action: retry after the Retry-After delay}
+    - {status: 409, code: idempotency_conflict, action: use a new key; the same key was reused with different request semantics}
+    - {status: 409, code: idempotency_needs_review, action: stop retrying and contact support with X-Anyapi-Request-Id}
+  docs: https://getanyapi.com/docs/durable-requests
+  note: >-
+    Idempotency here protects money, not just state: the underlying provider dispatch is paid,
+    so a replayed key returns the stored result without a second provider run and without a
+    second charge. The provider states it submits a paid provider job at most once, and will
+    let a request expire rather than risk duplicate spend when an upstream offers no
+    correlation lookup.
+reversibility:
+  grade: na
+  applies: false
+  detail: >-
+    The write surface has no reversal operation because it produces no durable provider-side
+    state to reverse. POST /v1/run/{sku} is a paid read-through: it fetches third-party data
+    and returns it. Nothing is created at the upstream that could be cancelled, refunded,
+    voided or restored, so there is no cancel/refund/undo operationId to record and no window
+    to state. Recorded as `na` rather than `none` on purpose - this is an API whose writes are
+    not destructive, not an API that lost the ability to take an action back.
+  what_exists_instead:
+    - >-
+      PRE-COMMIT, not post-commit. quote_api (MCP) and the documented POST /v1/apis/{sku}/quote
+      price and validate a call before it runs, free, executing and charging nothing - the
+      dry-run rehearsal that removes most of the need for a reversal.
+    - >-
+      max_cost_usd, a per-request ceiling in USD. Any route that would charge more is not
+      used; if nothing is available at or below the ceiling the request is refused BEFORE it
+      runs, nothing is charged, and the error names the cheapest available price.
+    - >-
+      Per-key spend limits (limitUsd with daily/weekly/monthly reset) and key expiry, both set
+      at mint time; a request that would breach the limit is rejected with 402 and nothing is
+      charged.
+    - >-
+      Reversible key disablement: POST /v1/api-keys/{id} with {"disabled": true} suspends a key
+      and {"disabled": false} restores it. DELETE /v1/api-keys/{id} is explicitly documented as
+      permanent and NOT undoable - the one genuinely irreversible operation on the surface.
+  financial_reversal:
+    x402: >-
+      Settles AFTER execution. A failed run never charges; failure is reported as released.
+      This is a reversal built into the rail rather than an API operation.
+    mpp: >-
+      Settles BEFORE execution. The provider states plainly that if execution then fails after
+      the payment is verified, the on-chain transfer CANNOT be automatically reversed, and
+      directs the caller to keep the request id and transaction reference for support. Recorded
+      verbatim because it is the one path on this API where money can be lost without a result.
+    wallet: >-
+      Stripe top-up refunds and disputes reduce the wallet balance; the provider does not state
+      a refund window, so none is asserted here.
+  docs: https://getanyapi.com/docs/agent-payments
+dry_run_mode:
+  supported: true
+  mechanism: >-
+    quote_api (MCP tool) and the documented POST /v1/apis/{sku}/quote REST endpoint. Free, no
+    key required, nothing executed or charged; validates the input against the SKU schema and
+    returns maxCostUsd, minCostUsd and the base/per-item breakdown.
+  docs: https://getanyapi.com/llms.txt
+pagination:
+  style: cursor
+  declared_per_sku: true
+  request_params: [cursor, limit, requireSinglePage]
+  response_field: output.data.nextCursor
+  termination: nextCursor is null
+  detection: >-
+    Not universal. An agent must confirm support per SKU by reading GET /v1/apis/{sku}: cursor
+    pagination applies only when inputSchema declares `cursor` AND the output schema declares
+    `nextCursor`. limit and requireSinglePage likewise only when inputSchema declares them.
+  cursor_opacity: Opaque and sealed to one walk; must not be parsed or constructed. An expired cursor means restart without one.
+  source_pinning: >-
+    A cursor pins the whole walk to the source that served page one, so the latency/price
+    preference is a no-op from page two onward and pages stay consistent.
+  docs: https://getanyapi.com/docs/pagination
+response_shaping:
+  note: >-
+    Four context-budget controls, on both /v1/run/{sku} and /v1/results/{id}. They shrink the
+    response to fit an agent context window and explicitly DO NOT change what is charged.
+  params:
+    - {name: fields, effect: comma-separated dotted keys to keep on each result item, matched relative to each item after the data/items envelope is unwrapped}
+    - {name: max_items, effect: cap result rows; a _truncated note reports how many were withheld}
+    - {name: summary, effect: return only a structural outline - top-level keys, item counts, per-field byte sizes}
+    - {name: jq, effect: a jq expression applied to the result envelope, sandboxed with a 250ms / 2MB budget; on failure the full result returns with a jqError}
+request_tracing:
+  header: X-Anyapi-Request-Id
+  body_field: requestId (uuid)
+  note: Present on the error envelope as well as on responses; quoted to support. Absent on endpoints that do not execute a run.
+async_and_durability:
+  mode: durable requests
+  negotiation_header: "Prefer: respond-async, or Prefer: wait=N"
+  wait_default: up to 10 seconds inline
+  wait_clamp: N clamped to 90 seconds
+  pending_response: 202 Accepted with Location, Retry-After and X-Anyapi-Request-Id headers
+  poll: GET /v1/requests/{id}, honoring retryAfterSeconds
+  states: [queued, running, succeeded, failed, expired]
+  result_retention: successful output retrievable for 24 hours, then metadata remains with resultExpired true
+  restriction: >-
+    Durable execution requires an authenticated wallet API key. It is NOT available through
+    anonymous, x402 or MPP payment flows.
+  docs: https://getanyapi.com/docs/durable-requests
+versioning:
+  scheme: uri-path
+  current: v1
+  note: >-
+    Discovery endpoints (/catalog, /catalog/search) sit outside the version prefix; everything
+    else is under /v1/. info.version in the OpenAPI is 1.0.0.
+error_envelope:
+  format: custom-json
+  rfc9457: false
+  shape: '{ error: string (required), code?: string, requestId?: uuid, payment?: {rail, settlementState, costUsd} }'
+  note: >-
+    Not RFC 9457 - responses are application/json, not application/problem+json, and the
+    envelope has no type/title/detail/instance. It does carry something RFC 9457 has no notion
+    of: a `payment` object naming the rail and a settlementState of charged_undelivered or
+    indeterminate, so a caller can tell a failed call that cost money from one that did not.
+  detail: errors/anyapi-problem-types.yml
+rate_limit_signaling:
+  provider_limits_published: false
+  headers: []
+  retry_after: Present on 409 idempotency_in_progress and on 202 durable-request responses
+  status_on_upstream_limit: 429
+  note: >-
+    AnyAPI publishes no rate limit of its own and returns no RateLimit-*/X-RateLimit-* headers.
+    429 signals that the UPSTREAM source was rate limited, not that the caller exceeded an
+    AnyAPI quota. Throughput is governed economically - by the wallet balance, per-key spend
+    limits and max_cost_usd - rather than by a request quota. Detail: rate-limits/anyapi-rate-limits.yml
+routing_and_failover:
+  note: >-
+    A cross-cutting semantic unusual enough to record. Each SKU can be served by several
+    independent sources ("lanes") ordered cheapest-first; a failed attempt falls through to the
+    next lane only when the request's payment authorizes that lane's price, and the normalized
+    schema is identical across lanes.
+  preference_param: preferLatencyUnderMs
+  preference_semantics: >-
+    A preference, not a filter. It reorders sources so those with a published median under the
+    target go first (cheapest of those serves) and never removes a source, so a request is
+    never refused for being slow. No-op when the API has one source, when sources are untimed,
+    or from page two of a cursor walk.
+  observability: GET /catalog publishes each lane's pricing next to health.latencyP50Ms - the exact number routing reads.
+cross_links:
+  authentication: authentication/anyapi-authentication.yml
+  scopes: scopes/anyapi-scopes.yml
+  errors: errors/anyapi-problem-types.yml
+  error_codes: errors/anyapi-error-codes.yml
+  lifecycle: lifecycle/anyapi-lifecycle.yml
+  rate_limits: rate-limits/anyapi-rate-limits.yml
+  plans: plans/anyapi-plans-pricing.yml

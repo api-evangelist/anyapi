@@ -1,0 +1,58 @@
+generated: '2026-09-04'
+method: searched
+source: >-
+  openapi/anyapi-gateway-openapi.json, https://getanyapi.com/docs/durable-requests,
+  https://getanyapi.com/.well-known/api-catalog, https://getanyapi.com/terms
+versioning:
+  scheme: uri-path
+  current: v1
+  spec_version: 1.0.0
+  note: >-
+    Everything except the two anonymous discovery endpoints (/catalog, /catalog/search) sits
+    under /v1/. The provider publishes no written versioning policy, no version-negotiation
+    header and no date-pinned version train.
+deprecation:
+  policy_url: null
+  policy_published: false
+  sunset_header: false
+  rfc8594: false
+  note: >-
+    No deprecation or sunset policy is published anywhere on the site or in the docs, and no
+    Sunset/Deprecation response headers are declared in the OpenAPI. A recorded absence: the
+    catalog changes composition often (SKUs are added and sources rotate behind them) and
+    nothing tells a caller how much notice a removed SKU gets.
+deprecated_operations: []
+deprecated_operation_count: 0
+deprecated_note: "Zero of the 370 operations carry a `deprecated` flag set true in the published spec."
+sla:
+  url: null
+  uptime_target: null
+  note: No SLA or uptime commitment is published.
+status_page:
+  url: null
+  published: false
+  note: >-
+    NO status page. status.getanyapi.com does not resolve and getanyapi.com/status 404s.
+    Deliberately NOT claimed as present. What the provider publishes instead is finer-grained
+    but is not a status page: GET /catalog returns, for every one of the 363 SKUs, each serving
+    lane's measured 30-day health - uptimePct, latencyP50Ms, uptimeSample and servedRequests -
+    and GET /v1/apis/{sku} adds trailing-30-day p50/p95/p99 latency with the sample size. That
+    is machine-readable per-source reliability data an agent can route on, but it carries no
+    incident history, no current-state banner and no notice of gateway-level outages.
+health_endpoint:
+  url: https://api.getanyapi.com/healthz
+  status: 200
+  body: '{"status":"ok"}'
+  declared_in: https://getanyapi.com/.well-known/api-catalog (linkset "status" relation)
+result_retention:
+  durable_request_output: 24 hours, then metadata remains with resultExpired true
+  cached_result_reread: roughly 15 minutes, free, via GET /v1/results/{id}
+  idempotency_key_scope: 24 hours, scoped to the customer
+credential_lifecycle:
+  key_expiry_options: [1h, 1d, 7d, 30d, 90d, 180d, 1y, never]
+  key_expiry_note: Fixed at creation and not changeable afterwards; mint a new key instead.
+  disable: 'Reversible via POST /v1/api-keys/{id} with body {"disabled": true}'
+  revoke: "DELETE /v1/api-keys/{id}, documented as permanent and not undoable"
+  trial_key: Self-expires in 7 days if never upgraded, with roughly $0.05 of requests
+  oauth_token: Access token expires in about one hour; refresh tokens supported
+  docs: https://getanyapi.com/docs/api-keys

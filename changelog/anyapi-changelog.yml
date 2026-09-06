@@ -1,0 +1,59 @@
+generated: '2026-09-04'
+method: searched
+source: https://github.com/getanyapi-com/cli/blob/main/CHANGELOG.md and https://github.com/getanyapi-com/sdks/releases
+scope: client-libraries
+scope_note: >-
+  READ THE SCOPE. There is no API-level changelog: getanyapi.com/changelog 404s and no dated
+  release notes for the gateway itself exist on the site or in the docs. What the provider does
+  publish, dated and structured, is release history for its FIRST-PARTY CLIENTS - a Keep-a-
+  Changelog CHANGELOG.md in the CLI repo and semver GitHub releases on the SDK monorepo. Those
+  entries do surface gateway-side changes indirectly (the 0.3.2/0.3.3 entries below narrate a
+  gateway cutover from credit-based to USD pricing), but they are client release notes and are
+  recorded as such.
+versioning_scheme: semver
+api_changelog:
+  published: false
+  probed: [{url: 'https://getanyapi.com/changelog', status: 404}]
+clients:
+  - name: anyapi-cli
+    changelog: https://github.com/getanyapi-com/cli/blob/main/CHANGELOG.md
+    format: keep-a-changelog
+    current_version: 0.8.1
+    current_published: '2026-08-27'
+  - name: '@getanyapi/sdk + getanyapi (Python)'
+    changelog: https://github.com/getanyapi-com/sdks/releases
+    format: github-releases
+    current_version: 0.35.3
+    current_published: '2026-09-01'
+  - name: n8n-nodes-anyapi
+    changelog: null
+    current_version: 0.3.0
+    current_published: '2026-08-15'
+entries:
+  - version: 0.35.3
+    date: '2026-09-01'
+    component: sdks
+    breaking: false
+    highlights: [Latest TypeScript and Python SDK release; three releases shipped on the same day.]
+  - version: 0.5.0
+    date: '2026-08-02'
+    component: cli
+    breaking: false
+    additions:
+      - '`anyapi login` starts the RFC 8628 OAuth device flow when no manual key is supplied - prints verification URL and user code, follows the server polling interval and slow_down, stores access/refresh token, expiry and scope.'
+    changes:
+      - '`anyapi login --api-key aa_live_...` remains the manual-key compatibility path and clears unrelated OAuth or trial state.'
+      - '`login` is the cross-device account sign-in path; `connect` remains the Authorization Code + PKCE loopback path for upgrading a free trial.'
+  - version: 0.3.3
+    date: null
+    component: cli
+    breaking: true
+    changes: [Discovery now accepts only the customer-safe contract - AnyAPI branding, nested USD pricing, relevance and ranking.]
+    removals: [Removed the temporary 0.3.2 compatibility reader for credit-based catalog responses and the former search field aliases.]
+  - version: 0.3.2
+    date: null
+    component: cli
+    breaking: false
+    changes:
+      - '`anyapi search` now uses the dedicated ranked catalog search endpoint.'
+      - Discovery responses normalized to AnyAPI-branded nested USD pricing; a bridge release reading both the credit-based contract and its replacement across the gateway cutover.

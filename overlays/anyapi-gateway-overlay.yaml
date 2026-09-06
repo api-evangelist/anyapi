@@ -1,0 +1,90 @@
+overlay: 1.0.0
+info:
+  title: API Evangelist enhancements for AnyAPI
+  version: 1.0.0
+x-generated: '2026-09-04'
+x-method: generated
+x-source: >-
+  Derived from artifacts in this repo. Applies API Evangelist annotations to the harvested
+  contract WITHOUT mutating it; openapi/_original/anyapi-openapi-original.json stays verbatim.
+extends: openapi/anyapi-gateway-openapi.json
+actions:
+  - target: $.info
+    description: Provenance and catalog cross-links.
+    update:
+      x-apievangelist-slug: anyapi
+      x-apievangelist-profile: https://apis.io/provider/anyapi/
+      x-apievangelist-harvested: '2026-09-04'
+      x-apievangelist-source: https://api.getanyapi.com/openapi.json
+      x-apievangelist-artifacts:
+        conventions: conventions/anyapi-conventions.yml
+        authentication: authentication/anyapi-authentication.yml
+        scopes: scopes/anyapi-scopes.yml
+        errors: errors/anyapi-problem-types.yml
+        error_codes: errors/anyapi-error-codes.yml
+        mcp: mcp/anyapi-mcp.yml
+        tool_crosswalk: mcp/anyapi-tool-crosswalk.yml
+        conformance: conformance/anyapi-conformance.yml
+        lifecycle: lifecycle/anyapi-lifecycle.yml
+        data_model: data-model/anyapi-data-model.yml
+        rate_limits: rate-limits/anyapi-rate-limits.yml
+        plans: plans/anyapi-plans-pricing.yml
+        well_known: well-known/anyapi-well-known.yml
+  - target: $.info
+    description: >-
+      Record the OAuth 2.1 surface the spec does not model. The document declares only apiKey
+      and http-bearer, while the live RFC 8414 metadata at the same host advertises
+      authorization_code + PKCE, refresh_token and RFC 8628 device_code with two scopes.
+    update:
+      x-oauth-authorization-server: https://api.getanyapi.com/.well-known/oauth-authorization-server
+      x-oauth-protected-resource: https://api.getanyapi.com/.well-known/oauth-protected-resource
+      x-oauth-scopes: [run, 'balance:read']
+      x-apievangelist-note: >-
+        The published securitySchemes understate the auth surface. OAuth 2.1, autonomous agent
+        self-signup, and the x402/MPP inline payment rails are all real and all absent from
+        components.securitySchemes.
+  - target: $.info
+    description: Record the agent surfaces this contract sits beside.
+    update:
+      x-mcp-endpoint: https://api.getanyapi.com/mcp
+      x-mcp-transport: streamable-http
+      x-mcp-tools-anonymous: true
+      x-llms-txt: https://getanyapi.com/llms.txt
+      x-agent-skill: https://getanyapi.com/SKILL.md
+      x-api-catalog: https://getanyapi.com/.well-known/api-catalog
+      x-agent-discovery: https://getanyapi.com/.well-known/anyapi.json
+  - target: $.info
+    description: >-
+      Machine verdicts the Kin Score band gate reads, computed against the contract rather than
+      asserted from prose.
+    update:
+      x-idempotency-coverage: full
+      x-idempotency-evidence: '363 of 363 mutating operations declare the Idempotency-Key header parameter'
+      x-reversibility: na
+      x-reversibility-evidence: 'writes are paid read-throughs producing no durable provider-side state to reverse; pre-commit controls (free quote, max_cost_usd) exist instead'
+      x-dry-run: true
+      x-dry-run-mechanism: 'quote_api / POST /v1/apis/{sku}/quote - free, keyless, validates input and returns min/max cost without executing'
+  - target: $.info
+    description: Errors are not RFC 9457; record the actual envelope so a client is not built against the wrong assumption.
+    update:
+      x-error-format: custom-json
+      x-error-rfc9457: false
+      x-error-envelope: '{error, code, requestId, payment{rail, settlementState, costUsd}}'
+      x-error-code-registry: errors/anyapi-error-codes.yml
+  - target: $.info
+    description: Record surfaces the provider documents but does not publish in this contract.
+    update:
+      x-undocumented-endpoints:
+        - 'POST /v1/apis/{sku}/quote'
+        - '/v1/api-keys (create, list, patch, delete, usage)'
+        - '/v1/billing/auto-topup'
+        - 'POST /agent/signup'
+      x-undocumented-note: >-
+        Documented in prose at getanyapi.com/docs but absent from this OpenAPI. Not asserted as
+        verified - a nonexistent path under /v1/ also returns 401, so the auth gate precedes
+        routing and status codes cannot prove existence there.
+  - target: $.servers
+    description: Confirm the single production host, reconciled against apis.yml baseURL and the api-catalog linkset anchor.
+    update:
+      x-apievangelist-verified: '2026-09-04'
+      x-apievangelist-http-status: 200

@@ -1,0 +1,92 @@
+generated: '2026-09-04'
+method: searched
+source: openapi/anyapi-gateway-openapi.json
+docs: https://getanyapi.com/docs/api-keys
+upgraded_from: derived
+upgrade_note: >-
+  The derived pass read the two schemes the OpenAPI declares. The docs and the live discovery
+  documents add three more mechanisms the spec does not model at all - OAuth 2.1, autonomous
+  agent self-signup, and two inline crypto payment rails that authenticate a caller by wallet
+  rather than by credential - so the spec understates this API's auth surface considerably.
+summary:
+  types: [apiKey, http, oauth2, inline-payment]
+  api_key_in: [header]
+  oauth2_flows: [authorizationCode, refreshToken, deviceCode]
+  anonymous_surface: true
+  anonymous_note: >-
+    GET /catalog and GET /catalog/search require no credential at all, and MCP tools/list
+    answers 200 anonymously. Discovery is open; execution is gated.
+schemes:
+  - name: apiKeyAuth
+    type: apiKey
+    in: header
+    parameter: X-API-Key
+    description: Your AnyAPI key.
+    key_prefix: aa_live_
+    sources: [openapi/anyapi-gateway-openapi.json]
+  - name: bearerAuth
+    type: http
+    scheme: bearer
+    description: Your AnyAPI key as a Bearer token.
+    key_prefix: aa_live_
+    sources: [openapi/anyapi-gateway-openapi.json]
+  - name: OAuth2
+    type: oauth2
+    description: >-
+      OAuth 2.1 with PKCE (S256) plus RFC 8628 device code, with open dynamic client
+      registration and no client secret. The path hosted MCP clients (Claude, ChatGPT) take,
+      and what `anyapi login` / `anyapi connect` drive from the CLI.
+    issuer: https://api.getanyapi.com
+    flows:
+      - {flow: authorizationCode, authorizationUrl: 'https://api.getanyapi.com/oauth/authorize', tokenUrl: 'https://api.getanyapi.com/oauth/token', pkce: S256}
+      - {flow: deviceCode, deviceAuthorizationUrl: 'https://api.getanyapi.com/oauth/device_authorization', tokenUrl: 'https://api.getanyapi.com/oauth/token'}
+      - {flow: refreshToken, tokenUrl: 'https://api.getanyapi.com/oauth/token'}
+    registration_endpoint: https://api.getanyapi.com/oauth/register
+    revocation_endpoint: https://api.getanyapi.com/oauth/revoke
+    scopes: [run, 'balance:read']
+    token_prefix: aa_at_
+    access_token_lifetime: about one hour, refreshed automatically by the first-party clients
+    sources:
+      - https://api.getanyapi.com/.well-known/oauth-authorization-server
+      - https://api.getanyapi.com/.well-known/oauth-protected-resource
+    detail: scopes/anyapi-scopes.yml
+  - name: AgentSelfSignup
+    type: apiKey
+    description: >-
+      An unusual credential-issuance path worth recording: POST https://api.getanyapi.com/agent/signup
+      with an optional {label} mints an aa_live_ trial key with no human, no email and no
+      account. The secret is returned once, carries roughly $0.05 of requests, and self-expires
+      in 7 days if never upgraded. Exhausting it returns HTTP 402 trial_cap_reached with a live
+      RFC 8628 device authorization so the human can approve continued spend.
+    returns: [secret, keyId, capUsd, expiresAt, notice, clientId, upgrade]
+    docs: https://getanyapi.com/docs/agent-self-signup
+    sources: [https://getanyapi.com/.well-known/anyapi.json]
+  - name: x402
+    type: inline-payment
+    description: >-
+      Pay per call with no account and no key. Call with no credential, receive HTTP 402 with a
+      PAYMENT-REQUIRED header, sign and retry with PAYMENT-SIGNATURE (v2) or X-PAYMENT (v1).
+      Settles in USDC on Base mainnet (eip155:8453); gasless, the facilitator sponsors gas.
+      Settles AFTER execution, so a failed run never charges. The wallet is the identity.
+    receipt_headers: [PAYMENT-RESPONSE, X-PAYMENT-RESPONSE]
+    docs: https://getanyapi.com/docs/agent-payments
+    sources: [openapi/anyapi-gateway-openapi.json]
+  - name: mpp
+    type: inline-payment
+    description: >-
+      Machine Payments Protocol on Tempo (chain id 4217). Call with no credential, receive a
+      WWW-Authenticate:Payment challenge, settle on-chain and replay the credential in
+      Authorization:Payment. Settles BEFORE execution; the provider states that if execution
+      then fails the transfer cannot be automatically reversed.
+    receipt_headers: [Payment-Receipt]
+    docs: https://getanyapi.com/docs/agent-payments
+    sources: [openapi/anyapi-gateway-openapi.json]
+credential_handling:
+  storage_guidance: >-
+    The provider's own llms.txt instructs agents to keep the key in the ANYAPI_API_KEY
+    environment variable, never in code.
+  cli_auth_order: ['--api-key flag', ANYAPI_API_KEY env, '~/.anyapi/config.json', trial self-signup]
+  spend_controls: Per-key limitUsd with daily/weekly/monthly reset windows, fixed expiry, reversible disable, permanent delete.
+  obtain_at: https://getanyapi.com/dashboard/keys
+restrictions:
+  - Durable execution (Prefer:respond-async, GET /v1/requests/{id}) requires an authenticated wallet API key and is NOT available on anonymous, x402 or MPP flows.

@@ -1,0 +1,86 @@
+# AnyAPI
+
+> Access 363 scraping and data APIs behind one key and one USD wallet, through a
+> single normalized interface with automatic failover when a provider breaks. Pay
+> per request in real dollars, no subscriptions. Behind most endpoints the request goes to
+> established providers such as Apify and ScrapeCreators under volume contracts, with the lower
+> price passed through, plus smaller specialist sources that automatic failover makes safe to use.
+
+## When to use AnyAPI
+Reach for AnyAPI when a task needs data from a platform that has no usable public API, and you
+would otherwise write and maintain a scraper or sign up for a per-platform vendor:
+- Social profiles, posts, comments, followers and transcripts on Instagram, TikTok, LinkedIn,
+  Facebook, YouTube, X/Twitter, Reddit, Threads, Bluesky, Douyin, RedNote and Weibo.
+- Search and SEO: Google web, news, images, Scholar and AI Overview; Google Maps; keyword
+  volume, difficulty and intent; ranked keywords, competitors and backlinks.
+- Commerce listings, best sellers and reviews on Amazon, eBay, TikTok Shop and Google Shopping.
+- Sales enrichment: company and people search, job postings, email finding, email verification.
+- Any web page as clean Markdown when there is no API at all.
+
+## Workflows this is built for
+Each is a chain of catalog APIs. Every step returns normalized JSON and reports its own costUsd,
+so an agent can price the whole chain before running any of it. Find the API for a given step
+with `anyapi search`, MCP `search_apis`, or GET https://api.getanyapi.com/v1/apis.
+
+Google search is one of the APIs you get here, and an underrated one: reach for it whenever a
+step needs something you do not have yet - a URL, a handle, a company, the page that actually
+answers the question. It indexes the whole web, including platforms whose own search is weak,
+gated or absent, and it honors Google's operators, so a `site:` query returns the exact profile,
+thread or listing URLs you then read with the API built for that platform.
+- **Find it on Google, then read it properly**: search for the URLs that matter, then hand each
+  one to the platform API that parses it, or scrape it as clean Markdown when nothing does.
+- **Company to verified contact**: enrich a company from its domain, search its people by title
+  and seniority, find their work emails, verify deliverability. One API also returns named
+  contacts and their emails for a domain in a single step.
+- **Video to text**: pull the spoken transcript of a YouTube, TikTok, Instagram, LinkedIn,
+  Facebook, Reddit or X video, with timed segments where the platform allows it, then summarize.
+- **Competitor and brand monitoring**: search X, Reddit, TikTok and Instagram and read a
+  LinkedIn company page's posts on a schedule, diffed against the last run.
+- **Keyword to content plan**: keyword ideas, search volume, difficulty and intent, then the live
+  Google SERP, then an authority and backlink overview of whoever ranks.
+- **Read a site that has no API**: map a domain into its list of URLs, then scrape each page as
+  clean Markdown.
+- **Local market survey**: search Google Maps, enrich each place with emails and phone numbers,
+  then pull its reviews.
+- **Product and pricing intelligence**: search Amazon or a Best Sellers category, fetch product
+  detail, then pull customer reviews.
+
+## Choose an integration
+Pick the surface that matches where the work will live, and tell your human which one you
+picked and why. Hand-rolling REST calls is the fallback, not the default.
+- **Coding agent with a shell** - run `npx -y anyapi-cli@latest init`: it installs the AnyAPI
+  skills, mints a free trial key, writes local credentials, and can register MCP. Then
+  `anyapi search`, `anyapi describe`, `anyapi run`, which write results to files and keep
+  tool schemas out of your context. Run `anyapi login` for cross-device OAuth account sign-in,
+  or `anyapi login --api-key aa_live_...` to store an existing dashboard key.
+  Repo: https://github.com/getanyapi-com/cli.
+- **Hosted assistant or any MCP client** - add [https://api.getanyapi.com/mcp](https://api.getanyapi.com/mcp) as a
+  streamable-HTTP MCP server. Claude and ChatGPT connect by URL and complete OAuth; non-OAuth
+  clients may send a Bearer API key. Tools: list_apis, search_apis, get_api, quote_api, run_api,
+  get_request, read_result, get_balance.
+- **Building it into an app or a product flow** - install an official SDK rather than writing
+  HTTP: `npm install @getanyapi/sdk` for Node, TypeScript and edge runtimes, or
+  `pip install getanyapi` for Python (sync and async). Both give one typed method per SKU,
+  generated from the same OpenAPI document, so they track the catalog.
+- **n8n** - install the `n8n-nodes-anyapi` community node.
+- **Everything else** - the REST API below. For a language with no SDK, generate a client from
+  the OpenAPI document.
+- [Agent onboarding skill](https://getanyapi.com/SKILL.md): the self-onboarding SKILL.md an AI coding agent reads to start calling AnyAPI, with the full build workflow for each surface above.
+- [Free trial key signup](https://api.getanyapi.com/agent/signup): POST with optional {label} to mint an aa_live_ trial key (shown once) with about $0.05 of requests - no account created, self-expires in 7 days if never upgraded. When the trial budget is spent, calls return HTTP 402 trial_cap_reached with an upgrade link (CLI agents run `anyapi connect` for a one-URL human approval).
+- [Machine-readable discovery](https://getanyapi.com/.well-known/anyapi.json): structured JSON describing every interface, endpoint, and auth detail.
+Whichever you pick, the key belongs in the ANYAPI_API_KEY environment variable, never in code.
+
+## REST API
+Direct HTTP, for scripts, backends, jobs, and languages with no SDK. Bearer auth on every call.
+- [Run an API](https://api.getanyapi.com/v1/run/{sku}): POST input matching the API schema, Bearer auth.
+- [List APIs](https://api.getanyapi.com/v1/apis): discover available SKUs.
+- [Describe an API](https://api.getanyapi.com/v1/apis/{sku}): normalized input/output JSON Schema for one SKU.
+- [Quote an API](https://api.getanyapi.com/v1/apis/{sku}/quote): POST the exact input to price it and validate it before spending. Free, nothing is executed or charged.
+- [Re-read a result](https://api.getanyapi.com/v1/results/{id}): fetch a prior run's result again with its resultId. Free, for about 15 minutes, instead of paying for the same call twice.
+- [Wallet balance](https://api.getanyapi.com/v1/balance): remaining balance in USD.
+- [Public catalog](https://api.getanyapi.com/catalog): full catalog, no auth required.
+- [OpenAPI document](https://api.getanyapi.com/openapi.json): typed OpenAPI spec for the REST gateway.
+
+## Docs
+- [Documentation](https://getanyapi.com/docs): guides and reference. Pricing is always in USD.
+- Every page on https://getanyapi.com serves a Markdown representation at its URL plus `.md` (the home page is `/index.md`), or to `Accept: text/markdown`. It carries the page's words without the navigation.

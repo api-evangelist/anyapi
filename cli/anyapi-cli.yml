@@ -1,0 +1,42 @@
+generated: '2026-09-04'
+method: searched
+source: https://getanyapi.com/docs/cli, https://getanyapi.com/.well-known/anyapi.json, https://github.com/getanyapi-com/cli
+name: anyapi
+package: anyapi-cli
+package_registry: npm
+version: 0.8.1
+published: '2026-08-27'
+repository: https://github.com/getanyapi-com/cli
+official: true
+positioning: >-
+  Explicitly built for AI coding agents with a shell rather than for humans. The provider's own
+  discovery document recommends it for Claude Code, Cursor and Codex on the grounds that it
+  "keeps tool schemas out of context and writes results to files" - the CLI is a context-budget
+  strategy, an alternative to the MCP server rather than a wrapper around it.
+install:
+  - {method: npx, command: 'npx -y anyapi-cli@latest init'}
+  - {method: npm, command: 'npm install -g anyapi-cli'}
+bootstrap:
+  command: anyapi init [--all] [--yes]
+  effect: >-
+    Installs the AnyAPI agent skills, mints a free trial key, writes local credentials, and can
+    register the remote MCP server with a client - a one-command zero-to-calling path.
+auth_order: ['--api-key flag', ANYAPI_API_KEY env, '~/.anyapi/config.json', trial self-signup]
+commands:
+  - {group: auth, command: 'anyapi signup [--label]', description: Mint a free trial key with no human and no account.}
+  - {group: auth, command: anyapi login, description: Cross-device OAuth account sign-in via the RFC 8628 device flow; prints a verification URL and user code and refreshes automatically before the one-hour token expires.}
+  - {group: auth, command: 'anyapi login --api-key aa_live_...', description: Store an existing dashboard key; clears unrelated OAuth or trial state.}
+  - {group: auth, command: anyapi connect, description: 'Authorization Code + PKCE loopback flow to upgrade past the trial (anyapi-cli >= 0.3.0).'}
+  - {group: discovery, command: 'anyapi search <query>', description: Ranked catalog search.}
+  - {group: discovery, command: 'anyapi list [--category]', description: Browse the catalog by category.}
+  - {group: discovery, command: 'anyapi describe <sku>', description: Print one SKU's normalized input and output schema and its USD pricing.}
+  - {group: execution, command: "anyapi run <sku> --input '<json>' [--jq <expr>] [--fields a,b] [--max-items N] [--summary] [-o path] [--json]", description: Execute a SKU; writes the result to a file by default.}
+  - {group: results, command: 'anyapi view [path] [--last [sku]] [--jq <expr>] [--fields a,b] [--max-items N] [--summary] [--json]', description: Re-read and re-shape a saved result locally, free.}
+  - {group: billing, command: anyapi balance, description: Remaining USD wallet balance.}
+  - {group: setup, command: 'anyapi init [--all] [--yes]', description: Install skills, mint a trial key, write credentials, optionally register MCP.}
+default_output: .anyapi/<sku>-<timestamp>.json
+key_flows:
+  - {flow: zero-to-first-call, steps: ['npx -y anyapi-cli@latest init', 'anyapi search <what you need>', 'anyapi describe <sku>', 'anyapi run <sku> --input ...']}
+  - {flow: budget-discipline, steps: ['anyapi describe <sku> to read pricing', 'anyapi run with --fields/--max-items/--summary/--jq to bound the response', 'anyapi view to re-read for free instead of re-running']}
+  - {flow: trial-to-account, steps: ['anyapi signup (no human)', 'spend the trial cap', 'anyapi connect for one-URL human approval']}
+changelog: https://github.com/getanyapi-com/cli/blob/main/CHANGELOG.md
