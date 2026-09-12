@@ -89,6 +89,8 @@ x-generated:
   confidence: 98
   at: '2026-09-04T05:09:51.686Z'
 common:
+- type: Website
+  url: https://www.getanyapi.com/
 - type: Portal
   url: https://apilayer.com
 - type: Marketplace
