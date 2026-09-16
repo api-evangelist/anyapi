@@ -16,6 +16,21 @@ modified: '2026-09-04'
 specificationVersion: '0.21'
 position: Producing
 tags:
+  - Developer Tools
+  - Data
+  - Search
+  - Scraping
+  - Social-Media
+  - E-Commerce
+  - SEO
+  - Enrichment
+  - MCP
+  - agent-native
+  - Web Data
+  - API Marketplace
+  - Agent Payments
+  - x402
+tags_raw:
   - developer_tools
   - data
   - search
@@ -31,54 +46,1926 @@ tags:
   - agent-payments
   - x402
 apis:
-  - name: AnyAPI Gateway API
-    description: >-
-      Unified REST gateway to 363 normalized scraping and data APIs, published as an OpenAPI 3.1.0 document with 370
-      operations. Execute jobs via POST /v1/run/{sku}, browse and search the catalog without a key, fetch a SKU's
-      normalized input/output JSON Schema with its USD pricing and measured 30-day latency, check wallet balance, and
-      poll or re-read results. Every mutating operation accepts an Idempotency-Key. Also fronts a hosted MCP server,
-      llms.txt, and published agent skills.
-    humanURL: https://getanyapi.com/docs
-    baseURL: https://api.getanyapi.com
-    image: https://getanyapi.com/og-v7.png
-    tags:
-      - developer_tools
-      - data
-      - search
-      - scraping
-      - social_media
-      - ecommerce
-      - seo
-      - enrichment
-      - mcp
-      - agent-native
-    properties:
-      - type: OpenAPI
-        url: openapi/anyapi-gateway-openapi.json
-      - type: OpenAPI
-        url: https://api.getanyapi.com/openapi.json
-      - type: MCPServer
-        url: mcp/anyapi-mcp.yml
-      - type: MCPServer
-        url: https://api.getanyapi.com/mcp
-      - type: ToolCrosswalk
-        url: mcp/anyapi-tool-crosswalk.yml
-      - type: Overlay
-        url: overlays/anyapi-gateway-overlay.yaml
-      - type: LLMsTxt
-        url: llms/anyapi-llms.txt
-      - type: LLMsTxt
-        url: https://getanyapi.com/llms.txt
-      - type: LLMsTxt
-        url: https://getanyapi.com/docs/llms.txt
-      - type: AgentSkill
-        url: https://getanyapi.com/SKILL.md
-      - type: Documentation
-        url: https://getanyapi.com/docs
-      - type: Documentation
-        url: https://getanyapi.com/docs/mcp-server
-      - type: Documentation
-        url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-ahrefs-api
+  name: AnyAPI Ahrefs API
+  description: The ahrefs API from AnyAPI — 4 operation(s) for ahrefs.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - ahrefs
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-ahrefs-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-airbnb-api
+  name: AnyAPI Airbnb API
+  description: The airbnb API from AnyAPI — 1 operation(s) for airbnb.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - airbnb
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-airbnb-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-alibaba-api
+  name: AnyAPI Alibaba API
+  description: The alibaba API from AnyAPI — 1 operation(s) for alibaba.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - alibaba
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-alibaba-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-amazon-api
+  name: AnyAPI Amazon API
+  description: The amazon API from AnyAPI — 5 operation(s) for amazon.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - amazon
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-amazon-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-apis-api
+  name: AnyAPI APIS API
+  description: The Apis API from AnyAPI — 2 operation(s) for apis.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - Apis
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-apis-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-apollo-api
+  name: AnyAPI Apollo API
+  description: The apollo API from AnyAPI — 8 operation(s) for apollo.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - apollo
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-apollo-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-appstore-api
+  name: AnyAPI Appstore API
+  description: The appstore API from AnyAPI — 1 operation(s) for appstore.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - appstore
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-appstore-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-balance-api
+  name: AnyAPI Balance API
+  description: The Balance API from AnyAPI — 1 operation(s) for balance.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - Balance
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-balance-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-bluesky-api
+  name: AnyAPI Bluesky API
+  description: The bluesky API from AnyAPI — 3 operation(s) for bluesky.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - bluesky
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-bluesky-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-booking-api
+  name: AnyAPI Booking API
+  description: The booking API from AnyAPI — 1 operation(s) for booking.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - booking
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-booking-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-capterra-api
+  name: AnyAPI Capterra API
+  description: The capterra API from AnyAPI — 1 operation(s) for capterra.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - capterra
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-capterra-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-catalog-api
+  name: AnyAPI Catalog API
+  description: The Catalog API from AnyAPI — 2 operation(s) for catalog.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - Catalog
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-catalog-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-chatgpt-api
+  name: AnyAPI Chatgpt API
+  description: The chatgpt API from AnyAPI — 1 operation(s) for chatgpt.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - chatgpt
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-chatgpt-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-coinmarketcap-api
+  name: AnyAPI Coinmarketcap API
+  description: The coinmarketcap API from AnyAPI — 1 operation(s) for coinmarketcap.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - coinmarketcap
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-coinmarketcap-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-company-api
+  name: AnyAPI Company API
+  description: The company API from AnyAPI — 1 operation(s) for company.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - company
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-company-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-company-enrichment-api
+  name: AnyAPI Company Enrichment API
+  description: The company-enrichment API from AnyAPI — 4 operation(s) for company-enrichment.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - company-enrichment
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-company-enrichment-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-company-search-api
+  name: AnyAPI Company Search API
+  description: The company-search API from AnyAPI — 7 operation(s) for company-search.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - company-search
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-company-search-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-congress-api
+  name: AnyAPI Congress API
+  description: The congress API from AnyAPI — 1 operation(s) for congress.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - congress
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-congress-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-dexscreener-api
+  name: AnyAPI Dexscreener API
+  description: The dexscreener API from AnyAPI — 1 operation(s) for dexscreener.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - dexscreener
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-dexscreener-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-douyin-api
+  name: AnyAPI Douyin API
+  description: The douyin API from AnyAPI — 5 operation(s) for douyin.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - douyin
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-douyin-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-ebay-api
+  name: AnyAPI Ebay API
+  description: The ebay API from AnyAPI — 4 operation(s) for ebay.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - ebay
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-ebay-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-email-api
+  name: AnyAPI Email API
+  description: The email API from AnyAPI — 2 operation(s) for email.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - email
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-email-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-email-finding-api
+  name: AnyAPI Email Finding API
+  description: The email-finding API from AnyAPI — 7 operation(s) for email-finding.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - email-finding
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-email-finding-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-email-verification-api
+  name: AnyAPI Email Verification API
+  description: The email-verification API from AnyAPI — 5 operation(s) for email-verification.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - email-verification
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-email-verification-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-facebook-api
+  name: AnyAPI Facebook API
+  description: The facebook API from AnyAPI — 26 operation(s) for facebook.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - facebook
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-facebook-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-fiverr-api
+  name: AnyAPI Fiverr API
+  description: The fiverr API from AnyAPI — 1 operation(s) for fiverr.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - fiverr
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-fiverr-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-g2-api
+  name: AnyAPI G2 API
+  description: The g2 API from AnyAPI — 1 operation(s) for g2.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - g2
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-g2-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-gemini-api
+  name: AnyAPI Gemini API
+  description: The gemini API from AnyAPI — 1 operation(s) for gemini.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - gemini
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-gemini-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-github-api
+  name: AnyAPI Github API
+  description: The github API from AnyAPI — 10 operation(s) for github.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - github
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-github-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-glassdoor-api
+  name: AnyAPI Glassdoor API
+  description: The glassdoor API from AnyAPI — 1 operation(s) for glassdoor.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - glassdoor
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-glassdoor-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-google-ads-api
+  name: AnyAPI Google Ads API
+  description: The google-ads API from AnyAPI — 4 operation(s) for google-ads.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - google-ads
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-google-ads-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-google-api
+  name: AnyAPI Google API
+  description: The google API from AnyAPI — 11 operation(s) for google.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - google
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-google-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-google-finance-api
+  name: AnyAPI Google Finance API
+  description: The google-finance API from AnyAPI — 1 operation(s) for google-finance.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - google-finance
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-google-finance-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-google-shopping-api
+  name: AnyAPI Google Shopping API
+  description: The google-shopping API from AnyAPI — 1 operation(s) for google-shopping.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - google-shopping
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-google-shopping-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-hackernews-api
+  name: AnyAPI Hackernews API
+  description: The hackernews API from AnyAPI — 4 operation(s) for hackernews.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - hackernews
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-hackernews-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-indeed-api
+  name: AnyAPI Indeed API
+  description: The indeed API from AnyAPI — 1 operation(s) for indeed.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - indeed
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-indeed-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-instagram-api
+  name: AnyAPI Instagram API
+  description: The instagram API from AnyAPI — 27 operation(s) for instagram.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - instagram
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-instagram-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-job-search-api
+  name: AnyAPI Job Search API
+  description: The job-search API from AnyAPI — 1 operation(s) for job-search.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - job-search
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-job-search-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-linkedin-api
+  name: AnyAPI Linkedin API
+  description: The linkedin API from AnyAPI — 26 operation(s) for linkedin.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - linkedin
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-linkedin-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-maps-api
+  name: AnyAPI Maps API
+  description: The maps API from AnyAPI — 4 operation(s) for maps.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - maps
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-maps-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-mobile-phone-api
+  name: AnyAPI Mobile Phone API
+  description: The mobile-phone API from AnyAPI — 2 operation(s) for mobile-phone.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - mobile-phone
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-mobile-phone-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-naver-api
+  name: AnyAPI Naver API
+  description: The naver API from AnyAPI — 1 operation(s) for naver.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - naver
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-naver-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-pandaexpress-api
+  name: AnyAPI Pandaexpress API
+  description: The pandaexpress API from AnyAPI — 3 operation(s) for pandaexpress.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - pandaexpress
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-pandaexpress-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-people-search-api
+  name: AnyAPI People Search API
+  description: The people-search API from AnyAPI — 8 operation(s) for people-search.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - people-search
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-people-search-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-perplexity-api
+  name: AnyAPI Perplexity API
+  description: The perplexity API from AnyAPI — 1 operation(s) for perplexity.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - perplexity
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-perplexity-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-person-api
+  name: AnyAPI Person API
+  description: The person API from AnyAPI — 1 operation(s) for person.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - person
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-person-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-person-enrichment-api
+  name: AnyAPI Person Enrichment API
+  description: The person-enrichment API from AnyAPI — 8 operation(s) for person-enrichment.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - person-enrichment
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-person-enrichment-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-pinterest-api
+  name: AnyAPI Pinterest API
+  description: The pinterest API from AnyAPI — 1 operation(s) for pinterest.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - pinterest
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-pinterest-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-playstore-api
+  name: AnyAPI Playstore API
+  description: The playstore API from AnyAPI — 1 operation(s) for playstore.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - playstore
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-playstore-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-polymarket-api
+  name: AnyAPI Polymarket API
+  description: The polymarket API from AnyAPI — 1 operation(s) for polymarket.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - polymarket
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-polymarket-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-realtor-api
+  name: AnyAPI Realtor API
+  description: The realtor API from AnyAPI — 1 operation(s) for realtor.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - realtor
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-realtor-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-reddit-api
+  name: AnyAPI Reddit API
+  description: The reddit API from AnyAPI — 11 operation(s) for reddit.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - reddit
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-reddit-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-redfin-api
+  name: AnyAPI Redfin API
+  description: The redfin API from AnyAPI — 1 operation(s) for redfin.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - redfin
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-redfin-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-rednote-api
+  name: AnyAPI Rednote API
+  description: The rednote API from AnyAPI — 6 operation(s) for rednote.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - rednote
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-rednote-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-requests-api
+  name: AnyAPI Requests API
+  description: The Requests API from AnyAPI — 1 operation(s) for requests.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - Requests
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-requests-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-results-api
+  name: AnyAPI Results API
+  description: The Results API from AnyAPI — 1 operation(s) for results.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - Results
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-results-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-sec-api
+  name: AnyAPI Sec API
+  description: The sec API from AnyAPI — 1 operation(s) for sec.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - sec
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-sec-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-semrush-api
+  name: AnyAPI Semrush API
+  description: The semrush API from AnyAPI — 2 operation(s) for semrush.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - semrush
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-semrush-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-seo-api
+  name: AnyAPI Seo API
+  description: The seo API from AnyAPI — 14 operation(s) for seo.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - seo
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-seo-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-snapchat-api
+  name: AnyAPI Snapchat API
+  description: The snapchat API from AnyAPI — 1 operation(s) for snapchat.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - snapchat
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-snapchat-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-social-api
+  name: AnyAPI Social API
+  description: The social API from AnyAPI — 1 operation(s) for social.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - social
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-social-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-spotify-api
+  name: AnyAPI Spotify API
+  description: The spotify API from AnyAPI — 7 operation(s) for spotify.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - spotify
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-spotify-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-substack-api
+  name: AnyAPI Substack API
+  description: The substack API from AnyAPI — 1 operation(s) for substack.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - substack
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-substack-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-technographics-api
+  name: AnyAPI Technographics API
+  description: The technographics API from AnyAPI — 1 operation(s) for technographics.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - technographics
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-technographics-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-threads-api
+  name: AnyAPI Threads API
+  description: The threads API from AnyAPI — 5 operation(s) for threads.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - threads
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-threads-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-tiktok-api
+  name: AnyAPI Tiktok API
+  description: The tiktok API from AnyAPI — 28 operation(s) for tiktok.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - tiktok
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-tiktok-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-tiktok-shop-api
+  name: AnyAPI Tiktok Shop API
+  description: The tiktok-shop API from AnyAPI — 10 operation(s) for tiktok-shop.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - tiktok-shop
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-tiktok-shop-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-tripadvisor-api
+  name: AnyAPI Tripadvisor API
+  description: The tripadvisor API from AnyAPI — 2 operation(s) for tripadvisor.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - tripadvisor
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-tripadvisor-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-trustpilot-api
+  name: AnyAPI Trustpilot API
+  description: The trustpilot API from AnyAPI — 1 operation(s) for trustpilot.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - trustpilot
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-trustpilot-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-truthsocial-api
+  name: AnyAPI Truthsocial API
+  description: The truthsocial API from AnyAPI — 3 operation(s) for truthsocial.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - truthsocial
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-truthsocial-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-twitter-api
+  name: AnyAPI Twitter API
+  description: The twitter API from AnyAPI — 16 operation(s) for twitter.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - twitter
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-twitter-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-upwork-api
+  name: AnyAPI Upwork API
+  description: The upwork API from AnyAPI — 1 operation(s) for upwork.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - upwork
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-upwork-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-walmart-api
+  name: AnyAPI Walmart API
+  description: The walmart API from AnyAPI — 1 operation(s) for walmart.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - walmart
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-walmart-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-web-api
+  name: AnyAPI Web API
+  description: The web API from AnyAPI — 4 operation(s) for web.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - web
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-web-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-weibo-api
+  name: AnyAPI Weibo API
+  description: The weibo API from AnyAPI — 6 operation(s) for weibo.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - weibo
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-weibo-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-yahoo-finance-api
+  name: AnyAPI Yahoo Finance API
+  description: The yahoo-finance API from AnyAPI — 1 operation(s) for yahoo-finance.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - yahoo-finance
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-yahoo-finance-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-yelp-api
+  name: AnyAPI Yelp API
+  description: The yelp API from AnyAPI — 1 operation(s) for yelp.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - yelp
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-yelp-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-youtube-api
+  name: AnyAPI Youtube API
+  description: The youtube API from AnyAPI — 19 operation(s) for youtube.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - youtube
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-youtube-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-zhihu-api
+  name: AnyAPI Zhihu API
+  description: The zhihu API from AnyAPI — 5 operation(s) for zhihu.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - zhihu
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-zhihu-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
+- aid: anyapi:anyapi-zillow-api
+  name: AnyAPI Zillow API
+  description: The zillow API from AnyAPI — 2 operation(s) for zillow.
+  humanURL: https://getanyapi.com/docs
+  baseURL: https://api.getanyapi.com
+  tags:
+  - zillow
+  properties:
+  - type: OpenAPI
+    url: openapi/anyapi-zillow-api-openapi.yml
+  - type: ToolCrosswalk
+    url: mcp/anyapi-tool-crosswalk.yml
+  - type: LLMsTxt
+    url: llms/anyapi-llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/llms.txt
+  - type: LLMsTxt
+    url: https://getanyapi.com/docs/llms.txt
+  - type: Documentation
+    url: https://getanyapi.com/docs
+  - type: Documentation
+    url: https://getanyapi.com/docs/mcp-server
+  - type: Documentation
+    url: https://getanyapi.com/docs/agent-skills
 maintainers:
   - FN: AnyAPI Support
     email: support@getanyapi.com
@@ -89,6 +1976,14 @@ x-generated:
   confidence: 98
   at: '2026-09-04T05:09:51.686Z'
 common:
+- type: MCPServer
+  url: mcp/anyapi-mcp.yml
+- type: MCPServer
+  url: https://api.getanyapi.com/mcp
+- type: Overlay
+  url: overlays/anyapi-gateway-overlay.yaml
+- type: AgentSkill
+  url: https://getanyapi.com/SKILL.md
 - type: Website
   url: https://www.getanyapi.com/
 - type: Portal
