@@ -76,6 +76,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Airbnb
+  tags_raw:
   - airbnb
   properties:
   - type: OpenAPI
@@ -100,6 +102,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Alibaba
+  tags_raw:
   - alibaba
   properties:
   - type: OpenAPI
@@ -124,6 +128,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Amazon
+  tags_raw:
   - amazon
   properties:
   - type: OpenAPI
@@ -148,6 +154,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Apollo
+  tags_raw:
   - apollo
   properties:
   - type: OpenAPI
@@ -172,6 +180,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Balances
+  tags_raw:
   - Balance
   properties:
   - type: OpenAPI
@@ -196,6 +206,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Bluesky
+  tags_raw:
   - bluesky
   properties:
   - type: OpenAPI
@@ -220,6 +232,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Booking
+  tags_raw:
   - booking
   properties:
   - type: OpenAPI
@@ -316,6 +330,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Company
+  tags_raw:
   - company
   properties:
   - type: OpenAPI
@@ -340,6 +356,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Company Enrichment
+  tags_raw:
   - company-enrichment
   properties:
   - type: OpenAPI
@@ -364,6 +382,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Company Search
+  tags_raw:
   - company-search
   properties:
   - type: OpenAPI
@@ -388,6 +408,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Congress
+  tags_raw:
   - congress
   properties:
   - type: OpenAPI
@@ -460,6 +482,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - eBay
+  tags_raw:
   - ebay
   properties:
   - type: OpenAPI
@@ -484,6 +508,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Email
+  tags_raw:
   - email
   properties:
   - type: OpenAPI
@@ -532,6 +558,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Email Verification
+  tags_raw:
   - email-verification
   properties:
   - type: OpenAPI
@@ -556,6 +584,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Facebook
+  tags_raw:
   - facebook
   properties:
   - type: OpenAPI
@@ -604,6 +634,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - G2
+  tags_raw:
   - g2
   properties:
   - type: OpenAPI
@@ -628,6 +660,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Gemini
+  tags_raw:
   - gemini
   properties:
   - type: OpenAPI
@@ -652,6 +686,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - GitHub
+  tags_raw:
   - github
   properties:
   - type: OpenAPI
@@ -700,6 +736,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Google Ads
+  tags_raw:
   - google-ads
   properties:
   - type: OpenAPI
@@ -724,6 +762,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Google
+  tags_raw:
   - google
   properties:
   - type: OpenAPI
@@ -772,6 +812,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Google Shopping
+  tags_raw:
   - google-shopping
   properties:
   - type: OpenAPI
@@ -796,6 +838,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Indeed
+  tags_raw:
   - indeed
   properties:
   - type: OpenAPI
@@ -820,6 +864,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Instagram
+  tags_raw:
   - instagram
   properties:
   - type: OpenAPI
@@ -844,6 +890,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Job Search
+  tags_raw:
   - job-search
   properties:
   - type: OpenAPI
@@ -868,6 +916,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Maps
+  tags_raw:
   - maps
   properties:
   - type: OpenAPI
@@ -964,6 +1014,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - People Search
+  tags_raw:
   - people-search
   properties:
   - type: OpenAPI
@@ -988,6 +1040,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Perplexity
+  tags_raw:
   - perplexity
   properties:
   - type: OpenAPI
@@ -1012,6 +1066,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Persons
+  tags_raw:
   - person
   properties:
   - type: OpenAPI
@@ -1036,6 +1092,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Person Enrichment
+  tags_raw:
   - person-enrichment
   properties:
   - type: OpenAPI
@@ -1060,6 +1118,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Pinterest
+  tags_raw:
   - pinterest
   properties:
   - type: OpenAPI
@@ -1108,6 +1168,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Polymarket
+  tags_raw:
   - polymarket
   properties:
   - type: OpenAPI
@@ -1156,6 +1218,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Reddit
+  tags_raw:
   - reddit
   properties:
   - type: OpenAPI
@@ -1276,6 +1340,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - SEC
+  tags_raw:
   - sec
   properties:
   - type: OpenAPI
@@ -1324,6 +1390,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - SEO
+  tags_raw:
   - seo
   properties:
   - type: OpenAPI
@@ -1372,6 +1440,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Social
+  tags_raw:
   - social
   properties:
   - type: OpenAPI
@@ -1396,6 +1466,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Spotify
+  tags_raw:
   - spotify
   properties:
   - type: OpenAPI
@@ -1444,6 +1516,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Technographics
+  tags_raw:
   - technographics
   properties:
   - type: OpenAPI
@@ -1468,6 +1542,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Threads
+  tags_raw:
   - threads
   properties:
   - type: OpenAPI
@@ -1492,6 +1568,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - TikTok
+  tags_raw:
   - tiktok
   properties:
   - type: OpenAPI
@@ -1516,6 +1594,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - TikTok Shop
+  tags_raw:
   - tiktok-shop
   properties:
   - type: OpenAPI
@@ -1564,6 +1644,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Trustpilot
+  tags_raw:
   - trustpilot
   properties:
   - type: OpenAPI
@@ -1660,6 +1742,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Walmart
+  tags_raw:
   - walmart
   properties:
   - type: OpenAPI
@@ -1684,6 +1768,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Web
+  tags_raw:
   - web
   properties:
   - type: OpenAPI
@@ -1756,6 +1842,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Yelp
+  tags_raw:
   - yelp
   properties:
   - type: OpenAPI
@@ -1780,6 +1868,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - YouTube
+  tags_raw:
   - youtube
   properties:
   - type: OpenAPI
@@ -1828,6 +1918,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Zillow
+  tags_raw:
   - zillow
   properties:
   - type: OpenAPI
@@ -1851,7 +1943,8 @@ apis:
   description: The Apis API from AnyAPI — 2 operation(s) for apis.
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
-  tags:
+  tags: []
+  tags_raw:
   - Apis
   properties:
   - type: OpenAPI
@@ -1900,6 +1993,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - ChatGPT
+  tags_raw:
   - Chat GPT
   properties:
   - type: OpenAPI
@@ -1948,6 +2043,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - LinkedIn
+  tags_raw:
   - Linked In
   properties:
   - type: OpenAPI
