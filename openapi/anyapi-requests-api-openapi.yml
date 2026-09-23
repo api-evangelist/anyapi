@@ -1,0 +1,189 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Requests API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: Requests
+paths:
+  /v1/requests/{id}:
+    get:
+      description: Inspect a customer-owned Request. Poll queued or running requests after retryAfterSeconds. Successful output is retained for 24 hours; metadata remains after the result expires.
+      operationId: getRequest
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestSnapshot'
+          description: Current request snapshot.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown request id, or a request owned by another customer.
+      summary: Get a request
+      tags:
+      - Requests
+components:
+  schemas:
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    RequestSnapshot:
+      properties:
+        completedAt:
+          format: date-time
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        error:
+          properties:
+            code:
+              type: string
+          required:
+          - code
+          type: object
+        expiresAt:
+          format: date-time
+          type: string
+        requestId:
+          format: uuid
+          type: string
+        result:
+          properties:
+            costUsd:
+              description: USD charged on the ORIGINAL run, echoed for envelope parity; this re-read is free.
+              type: number
+            items:
+              description: Number of result rows returned by the original run.
+              type: integer
+            jqError:
+              description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+              type: string
+            output:
+              description: The normalized result (`{found, data}` by default), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
+            provider:
+              description: Always "AnyAPI".
+              type: string
+            replayed:
+              description: False on this cached-result endpoint; true is reserved for durable idempotency replays from POST /v1/run/{sku}.
+              type: boolean
+            resultId:
+              description: The id you requested, echoed so you can keep re-reading the same cached result.
+              type: string
+          required:
+          - output
+          - provider
+          - costUsd
+          - items
+          - replayed
+          type: object
+        resultExpired:
+          type: boolean
+        retryAfterSeconds:
+          minimum: 1
+          type: integer
+        serviceOutcome:
+          description: End-to-end AnyAPI service result when known; independent of payment settlement.
+          enum:
+          - served
+          - valid_negative
+          - caller_error
+          - service_failure
+          - rejected
+          type: string
+        settlementState:
+          description: Payment settlement state when known; independent of request lifecycle status.
+          enum:
+          - not_required
+          - pending
+          - settled
+          - reconcile
+          - charged_undelivered
+          - writeoff
+          type: string
+        sku:
+          type: string
+        status:
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          - expired
+          type: string
+      required:
+      - requestId
+      - sku
+      - status
+      - createdAt
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

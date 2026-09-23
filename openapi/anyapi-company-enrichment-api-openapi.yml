@@ -1,0 +1,2467 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Company Enrichment API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: Company Enrichment
+  x-group: Company_enrichment
+paths:
+  /v1/run/company_enrichment.crustdata_v3:
+    post:
+      description: 'Enrich a company by domain, name, LinkedIn URL, or Crustdata identifier.
+
+
+        **Price:** \$48.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Company Enrichment - Crustdata v3 pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Company_enrichment endpoint.'
+      operationId: company_enrichment_crustdata_v3
+      parameters:
+      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              companyDomain: posthog.com
+            schema:
+              additionalProperties: false
+              anyOf:
+              - required:
+                - companyDomain
+              - required:
+                - companyName
+              - required:
+                - companyLinkedinUrl
+              - required:
+                - companyId
+              example:
+                companyDomain: posthog.com
+              properties:
+                companyDomain:
+                  minLength: 1
+                  type: string
+                companyId:
+                  type:
+                  - string
+                  - integer
+                companyLinkedinUrl:
+                  format: uri
+                  type: string
+                companyName:
+                  minLength: 1
+                  type: string
+                exactMatch:
+                  type: boolean
+                fields:
+                  oneOf:
+                  - minLength: 1
+                    type: string
+                  - items:
+                      minLength: 1
+                      type: string
+                    minItems: 1
+                    type: array
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+              title: Company Enrichment - Crustdata v3 input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    type: string
+                  items:
+                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          oneOf:
+                          - type: 'null'
+                          - properties:
+                              acquisitionStatus:
+                                description: Acquisition status, when the company has been acquired.
+                                type: string
+                              companyId:
+                                description: Crustdata identifier for the company, accepted back as the companyId input.
+                                type: string
+                              companyType:
+                                description: Company type, e.g. Privately Held or Public Company.
+                                type: string
+                              crunchbaseCategories:
+                                description: Crunchbase category tags.
+                                items:
+                                  type: string
+                                type: array
+                              crunchbaseUrl:
+                                description: Crunchbase profile URL.
+                                format: uri
+                                type: string
+                              crunchbaseUuid:
+                                description: Crunchbase organization UUID.
+                                type: string
+                              description:
+                                description: Company description from its LinkedIn page.
+                                type: string
+                              domain:
+                                description: Primary website domain, or null when the upstream holds none for this company.
+                                type:
+                                - string
+                                - 'null'
+                              domains:
+                                description: All domains associated with the company.
+                                items:
+                                  type: string
+                                type: array
+                              employeeCount:
+                                description: Latest observed employee count.
+                                type: integer
+                              employeeGrowthAbsolute:
+                                description: Net headcount change over trailing windows.
+                                properties:
+                                  mom:
+                                    description: Change over the last month.
+                                    type: integer
+                                  qoq:
+                                    description: Change over the last quarter.
+                                    type: integer
+                                  sixMonths:
+                                    description: Change over the last six months.
+                                    type: integer
+                                  twoYears:
+                                    description: Change over the last two years.
+                                    type: integer
+                                  yoy:
+                                    description: Change over the last twelve months.
+                                    type: integer
+                                type: object
+                              employeeGrowthPercent:
+                                description: Percent headcount change over trailing windows.
+                                properties:
+                                  mom:
+                                    description: Change over the last month.
+                                    type: number
+                                  qoq:
+                                    description: Change over the last quarter.
+                                    type: number
+                                  sixMonths:
+                                    description: Change over the last six months.
+                                    type: number
+                                  twoYears:
+                                    description: Change over the last two years.
+                                    type: number
+                                  yoy:
+                                    description: Change over the last twelve months.
+                                    type: number
+                                type: object
+                              employeeRange:
+                                description: Employee count band, e.g. 51-200.
+                                type: string
+                              estimatedRevenueHigherUsd:
+                                description: Upper bound of estimated annual revenue in USD.
+                                type: integer
+                              estimatedRevenueLowerUsd:
+                                description: Lower bound of estimated annual revenue in USD.
+                                type: integer
+                              fiscalYearEnd:
+                                description: Fiscal year end.
+                                type: string
+                              foundedUtc:
+                                description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. Founding date of the company.
+                                type: integer
+                              foundedYear:
+                                description: Year the company was founded.
+                                type: integer
+                              fullDomainMatch:
+                                description: True when the matched company's domain is an exact match for the requested one.
+                                type: boolean
+                              headcountByFunctionTimeseries:
+                                description: 'Headcount history broken down by region and by job function. Untyped passthrough: the whole nested structure ships exactly as Crustdata returns it, including its raw snake_case grouping keys (GEO_REGION, CURRENT_FUNCTION) and its string observation dates rather than epoch seconds, because the shape cannot be expressed in the canonical field grammar.'
+                              headcountByRegion:
+                                additionalProperties:
+                                  type: number
+                                description: Employee count per region, keyed by LinkedIn region name.
+                                type: object
+                              headcountByRegionPercent:
+                                additionalProperties:
+                                  type: number
+                                description: Share of employees per region as a percent, keyed by LinkedIn region name.
+                                type: object
+                              headcountByRole:
+                                additionalProperties:
+                                  type: number
+                                description: Employee count per job function, keyed by LinkedIn function name.
+                                type: object
+                              headcountByRolePercent:
+                                additionalProperties:
+                                  type: number
+                                description: Share of employees per job function as a percent, keyed by LinkedIn function name.
+                                type: object
+                              headcountByRoleSixMonthsGrowthPercent:
+                                description: 'Six-month percent headcount change per job function, exactly as Crustdata returns it. Untyped passthrough: the structure ships verbatim and is not validated, because it was empty for the company we captured.'
+                              headcountByRoleYoyGrowthPercent:
+                                description: 'Year-over-year percent headcount change per job function, exactly as Crustdata returns it. Untyped passthrough: the structure ships verbatim and is not validated, because it was empty for the company we captured.'
+                              headcountBySkill:
+                                additionalProperties:
+                                  type: number
+                                description: Employee count per listed skill, keyed by skill name.
+                                type: object
+                              headcountBySkillPercent:
+                                additionalProperties:
+                                  type: number
+                                description: Share of employees per listed skill as a percent, keyed by skill name.
+                                type: object
+                              headcountTimeseries:
+                                description: Historical employee-count observations, oldest first.
+                                items:
+                                  properties:
+                                    dateUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. Observation date.
+                                      type: integer
+                                    employeeCount:
+                                      description: Employee count observed on that date.
+                                      type: integer
+                                  type: object
+                                type: array
+                              hqCountry:
+                                description: Country of the headquarters.
+                                type: string
+                              hqState:
+                                description: State or province of the headquarters.
+                                type: string
+                              hqStreetAddress:
+                                description: Headquarters street address. Crustdata returns the same string as location for most companies.
+                                type: string
+                              image:
+                                description: Company logo URL.
+                                format: uri
+                                type: string
+                              industries:
+                                description: All LinkedIn industries listed for the company.
+                                items:
+                                  type: string
+                                type: array
+                              industry:
+                                description: Primary LinkedIn industry.
+                                type: string
+                              ipoUtc:
+                                description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. Date the company went public.
+                                type: integer
+                              largestHeadcountCountry:
+                                description: Country holding the largest share of employees.
+                                type: string
+                              linkedinCompanyId:
+                                description: LinkedIn's own numeric identifier for the company page.
+                                type: string
+                              linkedinLogoUrl:
+                                description: Company logo URL as LinkedIn serves it, including the signed expiry query LinkedIn requires to serve the file. The image field carries Crustdata's cached copy of the same logo, which does not expire.
+                                format: uri
+                                type: string
+                              linkedinProfileName:
+                                description: Company name as it appears on the LinkedIn page. Usually the same value as name; Crustdata returns both.
+                                type: string
+                              linkedinUrl:
+                                description: LinkedIn company page URL.
+                                format: uri
+                                type: string
+                              location:
+                                description: Headquarters location.
+                                type: string
+                              naics:
+                                description: Primary NAICS industry classification.
+                                properties:
+                                  code:
+                                    description: Primary NAICS code.
+                                    type: string
+                                  industry:
+                                    description: NAICS industry name.
+                                    type: string
+                                  industryGroup:
+                                    description: NAICS industry group name.
+                                    type: string
+                                  sector:
+                                    description: NAICS sector name.
+                                    type: string
+                                  subSector:
+                                    description: NAICS sub-sector name.
+                                    type: string
+                                  year:
+                                    description: NAICS revision year the code belongs to.
+                                    type: integer
+                                type: object
+                              name:
+                                description: Company name.
+                                type: string
+                              regionMetrics:
+                                description: Regions bucketed by the share of headcount they represent. Restates headcountByRegionPercent as bands.
+                                properties:
+                                  share0To10Percent:
+                                    description: Comma separated regions that each account for 0 to 10 percent of headcount.
+                                    type: string
+                                  share11To30Percent:
+                                    description: Comma separated regions that each account for 11 to 30 percent of headcount.
+                                    type: string
+                                  share31To50Percent:
+                                    description: Comma separated regions that each account for 31 to 50 percent of headcount.
+                                    type: string
+                                  share51To70Percent:
+                                    description: Comma separated regions that each account for 51 to 70 percent of headcount.
+                                    type: string
+                                  share71To100Percent:
+                                    description: Comma separated regions that each account for 71 to 100 percent of headcount.
+                                    type: string
+                                type: object
+                              roleMetrics:
+                                description: Job functions bucketed by the share of headcount they represent. Restates headcountByRolePercent as bands.
+                                properties:
+                                  allRoles:
+                                    description: Every job function present at the company, comma separated.
+                                    type: string
+                                  share0To10Percent:
+                                    description: Comma separated job functions that each account for 0 to 10 percent of headcount.
+                                    type: string
+                                  share11To30Percent:
+                                    description: Comma separated job functions that each account for 11 to 30 percent of headcount.
+                                    type: string
+                                  share31To50Percent:
+                                    description: Comma separated job functions that each account for 31 to 50 percent of headcount.
+                                    type: string
+                                  share51To70Percent:
+                                    description: Comma separated job functions that each account for 51 to 70 percent of headcount.
+                                    type: string
+                                  share71To100Percent:
+                                    description: Comma separated job functions that each account for 71 to 100 percent of headcount.
+                                    type: string
+                                type: object
+                              sicCodes:
+                                description: SIC industry classifications assigned to the company.
+                                items:
+                                  properties:
+                                    code:
+                                      description: SIC code.
+                                      type: string
+                                    industry:
+                                      description: SIC industry name.
+                                      type: string
+                                    year:
+                                      description: SIC revision year the code belongs to.
+                                      type: integer
+                                  type: object
+                                type: array
+                              skillMetrics:
+                                description: Skills bucketed by the share of headcount that lists them. Restates headcountBySkillPercent as bands.
+                                properties:
+                                  share0To10Percent:
+                                    description: Comma separated skills that each account for 0 to 10 percent of headcount.
+                                    type: string
+                                  share11To30Percent:
+                                    description: Comma separated skills that each account for 11 to 30 percent of headcount.
+                                    type: string
+                                  share31To50Percent:
+                                    description: Comma separated skills that each account for 31 to 50 percent of headcount.
+                                    type: string
+                                  share51To70Percent:
+                                    description: Comma separated skills that each account for 51 to 70 percent of headcount.
+                                    type: string
+                                  share71To100Percent:
+                                    description: Comma separated skills that each account for 71 to 100 percent of headcount.
+                                    type: string
+                                type: object
+                              specialities:
+                                description: Speciality tags the company lists on LinkedIn.
+                                items:
+                                  type: string
+                                type: array
+                              twitterUrl:
+                                description: X (Twitter) profile URL.
+                                format: uri
+                                type: string
+                              website:
+                                description: Company website URL.
+                                format: uri
+                                type: string
+                            required:
+                            - name
+                            - domain
+                            type: object
+                        found:
+                          description: False when no company matched the request.
+                          type: boolean
+                      required:
+                      - found
+                      - data
+                      title: Company Enrichment - Crustdata v3 output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown SKU, or the upstream had no matching resource.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Company Enrichment - Crustdata v3
+      tags:
+      - Company Enrichment
+      x-mint:
+        href: /api-reference/company-enrichment/crustdata-v3
+      x-payment-info:
+        price:
+          amount: '0.048000'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.048000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.048000'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: funded_ceiling
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/company_enrichment.lusha:
+    post:
+      description: 'Enrich one company into firmographics, industry classification, headcount, revenue band and social profiles from a domain, a company name, or a Lusha company id.
+
+
+        **Price:** \$84.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Company Enrichment - Lusha pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Company_enrichment endpoint.'
+      operationId: company_enrichment_lusha
+      parameters:
+      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              domain: posthog.com
+            schema:
+              additionalProperties: false
+              anyOf:
+              - required:
+                - domain
+              - required:
+                - company
+              - required:
+                - companyId
+              example:
+                domain: posthog.com
+              properties:
+                company:
+                  description: Company name to look up when you have no domain.
+                  minLength: 1
+                  type: string
+                companyId:
+                  description: Lusha's own company identifier, as returned by this SKU's companyId output.
+                  minLength: 1
+                  type: string
+                domain:
+                  description: Company domain, e.g. posthog.com. Send the bare domain, without a scheme or www.
+                  minLength: 1
+                  type: string
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+              title: Company Enrichment - Lusha input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    type: string
+                  items:
+                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The enriched company, or null when nothing matched.
+                          oneOf:
+                          - type: 'null'
+                          - properties:
+                              address:
+                                description: Headquarters address as one display string.
+                                type: string
+                              alternativeDomains:
+                                description: Other domains the company owns.
+                                items:
+                                  type: string
+                                type: array
+                              alternativeName:
+                                description: Alternative name Lusha holds for the company.
+                                type: string
+                              companyId:
+                                description: Lusha's own company identifier. Send it back as this SKU's companyId input.
+                                type: string
+                              companyType:
+                                description: Ownership type, e.g. Private Company.
+                                type: string
+                              description:
+                                description: Company description.
+                                type: string
+                              domain:
+                                description: Primary company domain.
+                                type: string
+                              emailDomain:
+                                description: Domain the company's work email addresses use.
+                                type: string
+                              employeeRange:
+                                description: Employee headcount band as Lusha bands it, e.g. 51 - 200.
+                                type: string
+                              employeesOnLinkedin:
+                                description: Employees LinkedIn shows for the company.
+                                type: integer
+                              facebookUrl:
+                                description: Company Facebook page URL.
+                                format: uri
+                                type: string
+                              founded:
+                                description: Year the company was founded.
+                                type: integer
+                              fqdn:
+                                description: Fully qualified host for the company website.
+                                type: string
+                              image:
+                                description: Company logo URL.
+                                format: uri
+                                type: string
+                              linkedinFollowers:
+                                description: LinkedIn follower count.
+                                type: integer
+                              linkedinUrl:
+                                description: Company LinkedIn page URL.
+                                format: uri
+                                type: string
+                              location:
+                                description: Headquarters location.
+                                properties:
+                                  city:
+                                    description: City.
+                                    type: string
+                                  continent:
+                                    description: Continent name.
+                                    type: string
+                                  country:
+                                    description: Country name.
+                                    type: string
+                                  countryCode:
+                                    description: ISO 3166-1 alpha-2 country code.
+                                    type: string
+                                  fullLocation:
+                                    description: Location as one display string.
+                                    type: string
+                                  state:
+                                    description: State or region.
+                                    type: string
+                                  stateCode:
+                                    description: State or region code.
+                                    type: string
+                                type: object
+                              mainIndustry:
+                                description: Top-level industry.
+                                type: string
+                              naicsCodes:
+                                description: NAICS classification codes for the company.
+                                items:
+                                  properties:
+                                    code:
+                                      description: NAICS code.
+                                      type: string
+                                    description:
+                                      description: What the NAICS code covers.
+                                      type: string
+                                  required:
+                                  - code
+                                  type: object
+                                type: array
+                              name:
+                                description: Company name.
+                                type: string
+                              offices:
+                                description: Every office location Lusha holds for the company.
+                                items:
+                                  properties:
+                                    city:
+                                      description: City.
+                                      type: string
+                                    continent:
+                                      description: Continent name.
+                                      type: string
+                                    country:
+                                      description: Country name.
+                                      type: string
+                                    countryCode:
+                                      description: ISO 3166-1 alpha-2 country code.
+                                      type: string
+                                    fullLocation:
+                                      description: Location as one display string.
+                                      type: string
+                                    state:
+                                      description: State or region.
+                                      type: string
+                                    stateCode:
+                                      description: State or region code.
+                                      type: string
+                                  type: object
+                                type: array
+                              popularityTier:
+                                description: Lusha's popularity tier for the company, 1 being the most prominent.
+                                type: integer
+                              recordId:
+                                description: Lusha's internal record id for the company row.
+                                type: string
+                              revenueRange:
+                                description: Annual revenue band in USD as [min, max].
+                                items:
+                                  type: integer
+                                type: array
+                              sicCodes:
+                                description: SIC classification codes for the company.
+                                items:
+                                  properties:
+                                    code:
+                                      description: SIC code.
+                                      type: string
+                                    description:
+                                      description: What the SIC code covers.
+                                      type: string
+                                  required:
+                                  - code
+                                  type: object
+                                type: array
+                              specialities:
+                                description: Specialities the company lists for itself.
+                                items:
+                                  type: string
+                                type: array
+                              subIndustry:
+                                description: Sub-industry.
+                                type: string
+                              website:
+                                description: Company website URL.
+                                format: uri
+                                type: string
+                              xUrl:
+                                description: Company X (Twitter) profile URL.
+                                format: uri
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        found:
+                          description: False when Lusha holds no company for the requested identifier.
+                          type: boolean
+                      required:
+                      - found
+                      - data
+                      title: Company Enrichment - Lusha output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown SKU, or the upstream had no matching resource.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Company Enrichment - Lusha
+      tags:
+      - Company Enrichment
+      x-mint:
+        href: /api-reference/company-enrichment/lusha
+      x-payment-info:
+        price:
+          amount: '0.084000'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.084000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.084000'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: funded_ceiling
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/company_enrichment.peopledatalabs:
+    post:
+      description: 'Enrich one company into firmographics, funding history, NAICS and SIC classification, and People Data Labs'' headcount growth, tenure and churn series from a domain or a company name.
+
+
+        **Price:** \$120.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Company Enrichment - People Data Labs pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Company_enrichment endpoint.'
+      operationId: company_enrichment_peopledatalabs
+      parameters:
+      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              domain: posthog.com
+            schema:
+              additionalProperties: false
+              anyOf:
+              - required:
+                - domain
+              - required:
+                - name
+              example:
+                domain: posthog.com
+              properties:
+                dataInclude:
+                  description: Comma-separated People Data Labs fields to include, or a leading - list to exclude. Projection changes the payload only; it does not reduce what the call costs.
+                  type: string
+                domain:
+                  description: Company website domain, e.g. posthog.com. The strongest identifier.
+                  minLength: 1
+                  type: string
+                includeIfMatched:
+                  description: Report which of the sent identifiers actually matched.
+                  type: boolean
+                minLikelihood:
+                  description: Minimum People Data Labs likelihood score a match must reach to count as found.
+                  maximum: 10
+                  minimum: 1
+                  type: integer
+                name:
+                  description: Company name, for when you have no domain.
+                  minLength: 1
+                  type: string
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                required:
+                  description: People Data Labs boolean expression over top-level fields that a match must satisfy, e.g. website and industry.
+                  type: string
+                titlecase:
+                  description: Return text in title case instead of People Data Labs' lowercase default.
+                  type: boolean
+              title: Company Enrichment - People Data Labs input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    type: string
+                  items:
+                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The enriched company, or null when nothing matched.
+                          oneOf:
+                          - type: 'null'
+                          - properties:
+                              affiliatedEntities:
+                                description: People Data Labs company ids of affiliated entities.
+                                items:
+                                  type: string
+                                type: array
+                              affiliatedProfiles:
+                                description: People Data Labs company ids of affiliated profiles.
+                                items:
+                                  type: string
+                                type: array
+                              allSubsidiaries:
+                                description: People Data Labs company ids of every subsidiary, at any depth.
+                                items:
+                                  type: string
+                                type: array
+                              alternativeDomains:
+                                description: Other domains the company owns.
+                                items:
+                                  type: string
+                                type: array
+                              alternativeNames:
+                                description: Other names the company trades under.
+                                items:
+                                  type: string
+                                type: array
+                              averageEmployeeTenure:
+                                description: Average employee tenure in years.
+                                type: number
+                              averageTenureByLevel:
+                                additionalProperties: true
+                                description: Average tenure in years, keyed by seniority level.
+                                type: object
+                              averageTenureByRole:
+                                additionalProperties: true
+                                description: Average tenure in years, keyed by role.
+                                type: object
+                              datasetVersion:
+                                description: Version of the People Data Labs dataset this record came from.
+                                type: string
+                              directSubsidiaries:
+                                description: People Data Labs company ids of direct subsidiaries.
+                                items:
+                                  type: string
+                                type: array
+                              employeeChurnRate:
+                                additionalProperties: true
+                                description: Churn rate keyed by window, e.g. 12_month.
+                                type: object
+                              employeeCount:
+                                description: Employees People Data Labs currently counts.
+                                type: integer
+                              employeeCountByClass:
+                                additionalProperties: true
+                                description: Headcount keyed by job class.
+                                type: object
+                              employeeCountByCountry:
+                                additionalProperties: true
+                                description: Headcount keyed by country.
+                                type: object
+                              employeeCountByMonth:
+                                additionalProperties: true
+                                description: Headcount keyed by YYYY-MM month.
+                                type: object
+                              employeeCountByRole:
+                                additionalProperties: true
+                                description: Headcount keyed by role.
+                                type: object
+                              employeeCountBySubRole:
+                                additionalProperties: true
+                                description: Headcount keyed by sub-role.
+                                type: object
+                              employeeGrowthRate:
+                                additionalProperties: true
+                                description: Headcount growth rate keyed by window.
+                                type: object
+                              employeeGrowthRate12MonthByClass:
+                                additionalProperties: true
+                                description: Twelve-month headcount growth rate keyed by job class.
+                                type: object
+                              employeeGrowthRate12MonthByCountry:
+                                additionalProperties: true
+                                description: Twelve-month headcount growth keyed by country, each entry carrying current and prior headcount.
+                                type: object
+                              employeeGrowthRate12MonthByRole:
+                                additionalProperties: true
+                                description: Twelve-month headcount growth rate keyed by role.
+                                type: object
+                              employeeTurnoverRate:
+                                additionalProperties: true
+                                description: Turnover rate keyed by window, e.g. 3_month, 12_month.
+                                type: object
+                              facebookUrl:
+                                description: Company Facebook page URL.
+                                format: uri
+                                type: string
+                              founded:
+                                description: Year the company was founded.
+                                type: integer
+                              fundingRounds:
+                                description: Number of funding rounds raised.
+                                type: integer
+                              fundingStages:
+                                description: Every funding stage the company has raised.
+                                items:
+                                  type: string
+                                type: array
+                              grossAdditionsByMonth:
+                                additionalProperties: true
+                                description: Employees joined, keyed by YYYY-MM month.
+                                type: object
+                              grossDeparturesByMonth:
+                                additionalProperties: true
+                                description: Employees departed, keyed by YYYY-MM month.
+                                type: object
+                              headline:
+                                description: One-line company tagline.
+                                type: string
+                              immediateParent:
+                                description: People Data Labs company id of the immediate parent company.
+                                type: string
+                              industry:
+                                description: Company industry.
+                                type: string
+                              industryV2:
+                                description: Company industry on People Data Labs' newer taxonomy.
+                                type: string
+                              inferredRevenue:
+                                description: Inferred annual revenue band, e.g. $50M-$100M.
+                                type: string
+                              lastFundingUtc:
+                                description: UTC epoch timestamp in seconds (Unix time) of the most recent funding round. Multiply by 1000 for a JS Date in milliseconds.
+                                type: number
+                              latestFundingStage:
+                                description: Most recent funding stage, e.g. series_e.
+                                type: string
+                              likelihood:
+                                description: People Data Labs' 1 to 10 confidence that this record is the company you asked for.
+                                type: integer
+                              linkedinFollowers:
+                                description: LinkedIn follower count.
+                                type: integer
+                              linkedinId:
+                                description: Company LinkedIn numeric id.
+                                type: string
+                              linkedinSlug:
+                                description: Company LinkedIn vanity slug.
+                                type: string
+                              linkedinUrl:
+                                description: Company LinkedIn page URL.
+                                format: uri
+                                type: string
+                              location:
+                                description: Company headquarters.
+                                properties:
+                                  addressLine2:
+                                    description: Second line of the address.
+                                    type: string
+                                  continent:
+                                    description: Continent.
+                                    type: string
+                                  country:
+                                    description: Country.
+                                    type: string
+                                  geo:
+                                    description: Coordinates as "lat,lon".
+                                    type: string
+                                  locality:
+                                    description: City.
+                                    type: string
+                                  metro:
+                                    description: Metro area.
+                                    type: string
+                                  name:
+                                    description: Location as one display string.
+                                    type: string
+                                  postalCode:
+                                    description: Postal code.
+                                    type: string
+                                  region:
+                                    description: State or region.
+                                    type: string
+                                  streetAddress:
+                                    description: Street address.
+                                    type: string
+                                type: object
+                              medianEmployeeTenure:
+                                description: Median employee tenure in years.
+                                type: number
+                              medianTenureByLevel:
+                                additionalProperties: true
+                                description: Median tenure in years, keyed by seniority level.
+                                type: object
+                              medianTenureByRole:
+                                additionalProperties: true
+                                description: Median tenure in years, keyed by role.
+                                type: object
+                              micExchange:
+                                description: MIC code of the exchange the company lists on.
+                                type: string
+                              naicsCodes:
+                                description: NAICS classification for the company.
+                                items:
+                                  properties:
+                                    code:
+                                      description: NAICS code.
+                                      type: string
+                                    industryGroup:
+                                      description: NAICS industry group.
+                                      type: string
+                                    naicsIndustry:
+                                      description: NAICS industry.
+                                      type: string
+                                    nationalIndustry:
+                                      description: NAICS national industry.
+                                      type: string
+                                    sector:
+                                      description: NAICS sector.
+                                      type: string
+                                    subSector:
+                                      description: NAICS sub-sector.
+                                      type: string
+                                  required:
+                                  - code
+                                  type: object
+                                type: array
+                              name:
+                                description: Company name as People Data Labs displays it.
+                                type: string
+                              nameNormalized:
+                                description: Lowercase normalized company name, the form People Data Labs matches on.
+                                type: string
+                              pdlId:
+                                description: People Data Labs persistent company id.
+                                type: string
+                              profiles:
+                                description: Every social profile People Data Labs links to the company.
+                                items:
+                                  type: string
+                                type: array
+                              sicCodes:
+                                description: SIC classification for the company.
+                                items:
+                                  properties:
+                                    code:
+                                      description: SIC code.
+                                      type: string
+                                    industryGroup:
+                                      description: SIC industry group.
+                                      type: string
+                                    industrySector:
+                                      description: SIC industry sector.
+                                      type: string
+                                    majorGroup:
+                                      description: SIC major group.
+                                      type: string
+                                  required:
+                                  - code
+                                  type: object
+                                type: array
+                              size:
+                                description: Employee headcount band, e.g. 11-50.
+                                type: string
+                              summary:
+                                description: Long company description.
+                                type: string
+                              tags:
+                                description: Descriptive tags for the company.
+                                items:
+                                  type: string
+                                type: array
+                              ticker:
+                                description: Stock ticker, for listed companies.
+                                type: string
+                              totalFundingRaised:
+                                description: Total capital raised, in USD.
+                                type: number
+                              twitterUrl:
+                                description: Company X (Twitter) profile URL.
+                                format: uri
+                                type: string
+                              type:
+                                description: Ownership type, e.g. private, public.
+                                type: string
+                              ultimateParent:
+                                description: People Data Labs company id of the ultimate parent company.
+                                type: string
+                              website:
+                                description: Company website domain.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        found:
+                          description: False when People Data Labs matched no company above the likelihood threshold.
+                          type: boolean
+                      required:
+                      - found
+                      - data
+                      title: Company Enrichment - People Data Labs output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown SKU, or the upstream had no matching resource.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Company Enrichment - People Data Labs
+      tags:
+      - Company Enrichment
+      x-mint:
+        href: /api-reference/company-enrichment/peopledatalabs
+      x-payment-info:
+        price:
+          amount: '0.120000'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.120000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.120000'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: funded_ceiling
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/company_enrichment.prospeo:
+    post:
+      description: 'Enrich one company into firmographics, funding history, technology stack, open roles and headquarters contact details from a website, a company name, or a LinkedIn page.
+
+
+        **Price:** \$66.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Company Enrichment - Prospeo pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Company_enrichment endpoint.'
+      operationId: company_enrichment_prospeo
+      parameters:
+      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              companyWebsite: stripe.com
+            schema:
+              additionalProperties: false
+              anyOf:
+              - required:
+                - companyWebsite
+              - required:
+                - companyName
+              - required:
+                - companyId
+              - required:
+                - companyLinkedinUrl
+              example:
+                companyWebsite: stripe.com
+              properties:
+                companyId:
+                  description: Prospeo's own company identifier, as returned by this SKU's companyId output.
+                  minLength: 1
+                  type: string
+                companyLinkedinUrl:
+                  description: Company LinkedIn page URL.
+                  format: uri
+                  type: string
+                companyName:
+                  description: Company name, for when you have no domain.
+                  minLength: 1
+                  type: string
+                companyWebsite:
+                  description: Company domain, e.g. stripe.com. The most reliable identifier.
+                  minLength: 1
+                  type: string
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+              title: Company Enrichment - Prospeo input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    type: string
+                  items:
+                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The enriched company, or null when nothing matched.
+                          oneOf:
+                          - type: 'null'
+                          - properties:
+                              attributes:
+                                description: What Prospeo detects about how the company sells.
+                                properties:
+                                  hasDemo:
+                                    description: The website offers a demo.
+                                    type: boolean
+                                  hasDownloadable:
+                                    description: The website offers a download.
+                                    type: boolean
+                                  hasFreeTrial:
+                                    description: The website offers a free trial.
+                                    type: boolean
+                                  hasMobileApps:
+                                    description: The company publishes mobile apps.
+                                    type: boolean
+                                  hasOnlineReviews:
+                                    description: The company has online reviews.
+                                    type: boolean
+                                  hasPricing:
+                                    description: The website publishes pricing.
+                                    type: boolean
+                                  isB2b:
+                                    description: The company sells to businesses.
+                                    type: boolean
+                                type: object
+                              companyId:
+                                description: Prospeo's own company identifier. Send it back as this SKU's companyId input.
+                                type: string
+                              crunchbaseUrl:
+                                description: Company Crunchbase profile URL.
+                                format: uri
+                                type: string
+                              description:
+                                description: Company description as the company writes it.
+                                type: string
+                              descriptionAi:
+                                description: Prospeo's own AI-written company summary.
+                                type: string
+                              descriptionSeo:
+                                description: Meta description from the company's website.
+                                type: string
+                              domain:
+                                description: Primary company domain.
+                                type: string
+                              emailTech:
+                                description: How the company's email is hosted.
+                                properties:
+                                  domain:
+                                    description: Domain the company's email addresses use.
+                                    type: string
+                                  mxProvider:
+                                    description: Mail provider behind the domain's MX records.
+                                    type: string
+                                type: object
+                              employeeCount:
+                                description: Employees Prospeo currently counts.
+                                type: integer
+                              employeeCountOnProspeo:
+                                description: Employees of this company that Prospeo holds a profile for.
+                                type: integer
+                              employeeRange:
+                                description: Employee headcount band, e.g. 10000+.
+                                type: string
+                              facebookUrl:
+                                description: Company Facebook page URL.
+                                format: uri
+                                type: string
+                              founded:
+                                description: Year the company was founded.
+                                type: integer
+                              freeEnrichment:
+                                description: True when Prospeo served this record from cache and did not charge for it.
+                                type: boolean
+                              funding:
+                                description: Funding history.
+                                properties:
+                                  events:
+                                    description: One entry per funding round.
+                                    items:
+                                      properties:
+                                        amount:
+                                          description: Amount raised in USD.
+                                          type: number
+                                        amountPrinted:
+                                          description: Amount raised as a display string.
+                                          type: string
+                                        link:
+                                          description: Source URL for the round.
+                                          format: uri
+                                          type: string
+                                        raisedUtc:
+                                          description: UTC epoch timestamp in seconds (Unix time) the round closed. Multiply by 1000 for a JS Date in milliseconds.
+                                          type: number
+                                        stage:
+                                          description: Round stage, e.g. Series E-J.
+                                          type: string
+                                      type: object
+                                    type: array
+                                  latestStage:
+                                    description: Most recent funding stage.
+                                    type: string
+                                  latestUtc:
+                                    description: UTC epoch timestamp in seconds (Unix time) of the most recent round. Multiply by 1000 for a JS Date in milliseconds.
+                                    type: number
+                                  rounds:
+                                    description: Number of funding rounds raised.
+                                    type: integer
+                                  totalRaised:
+                                    description: Total capital raised, in USD.
+                                    type: number
+                                  totalRaisedPrinted:
+                                    description: Total capital raised as a display string.
+                                    type: string
+                                type: object
+                              image:
+                                description: Company logo URL.
+                                format: uri
+                                type: string
+                              industry:
+                                description: Company industry.
+                                type: string
+                              instagramUrl:
+                                description: Company Instagram profile URL.
+                                format: uri
+                                type: string
+                              jobPostings:
+                                description: Open roles Prospeo currently sees for the company.
+                                properties:
+                                  activeCount:
+                                    description: Open roles currently posted.
+                                    type: integer
+                                  activeTitles:
+                                    description: Titles of the open roles.
+                                    items:
+                                      type: string
+                                    type: array
+                                type: object
+                              keywords:
+                                description: Keywords Prospeo assigns the company.
+                                items:
+                                  type: string
+                                type: array
+                              linkedinId:
+                                description: Company LinkedIn numeric id.
+                                type: string
+                              linkedinUrl:
+                                description: Company LinkedIn page URL.
+                                format: uri
+                                type: string
+                              location:
+                                description: Company headquarters.
+                                properties:
+                                  city:
+                                    description: City.
+                                    type: string
+                                  country:
+                                    description: Country name.
+                                    type: string
+                                  countryCode:
+                                    description: ISO 3166-1 alpha-2 country code.
+                                    type: string
+                                  rawAddress:
+                                    description: Headquarters address as one display string.
+                                    type: string
+                                  state:
+                                    description: State or region.
+                                    type: string
+                                type: object
+                              naicsCodes:
+                                description: NAICS classification codes for the company.
+                                items:
+                                  type: string
+                                type: array
+                              name:
+                                description: Company name.
+                                type: string
+                              otherWebsites:
+                                description: Other domains the company owns.
+                                items:
+                                  type: string
+                                type: array
+                              phoneHq:
+                                description: Headquarters switchboard number.
+                                properties:
+                                  country:
+                                    description: Country the number belongs to.
+                                    type: string
+                                  countryCode:
+                                    description: ISO 3166-1 alpha-2 code for that country.
+                                    type: string
+                                  international:
+                                    description: Number in international format.
+                                    type: string
+                                  national:
+                                    description: Number in national format.
+                                    type: string
+                                  phone:
+                                    description: Phone number as Prospeo stores it.
+                                    type: string
+                                type: object
+                              revenueRange:
+                                description: Annual revenue band in USD.
+                                properties:
+                                  max:
+                                    description: Upper bound in USD.
+                                    type: number
+                                  min:
+                                    description: Lower bound in USD.
+                                    type: number
+                                type: object
+                              revenueRangePrinted:
+                                description: Annual revenue band as a display string.
+                                type: string
+                              sicCodes:
+                                description: SIC classification codes for the company.
+                                items:
+                                  type: string
+                                type: array
+                              technologies:
+                                description: Technologies Prospeo detects in the company's stack.
+                                items:
+                                  type: string
+                                type: array
+                              twitterUrl:
+                                description: Company X (Twitter) profile URL.
+                                format: uri
+                                type: string
+                              type:
+                                description: Ownership type, e.g. Private, Public, Non Profit.
+                                type: string
+                              website:
+                                description: Company website URL.
+                                format: uri
+                                type: string
+                              youtubeUrl:
+                                description: Company YouTube channel URL.
+                                format: uri
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        found:
+                          description: False when Prospeo matched nothing.
+                          type: boolean
+                      required:
+                      - found
+                      - data
+                      title: Company Enrichment - Prospeo output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown SKU, or the upstream had no matching resource.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Company Enrichment - Prospeo
+      tags:
+      - Company Enrichment
+      x-mint:
+        href: /api-reference/company-enrichment/prospeo
+      x-payment-info:
+        price:
+          amount: '0.066000'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.066000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.066000'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: funded_ceiling
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+components:
+  schemas:
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    DeviceUpgrade:
+      properties:
+        deviceCode:
+          type: string
+        expiresIn:
+          minimum: 0
+          type: integer
+        grantType:
+          type: string
+        interval:
+          minimum: 1
+          type: integer
+        tokenEndpoint:
+          format: uri
+          type: string
+        userCode:
+          type: string
+        verificationUri:
+          format: uri
+          type: string
+        verificationUriComplete:
+          format: uri
+          type: string
+      required:
+      - verificationUriComplete
+      - verificationUri
+      - userCode
+      - deviceCode
+      - tokenEndpoint
+      - grantType
+      - interval
+      - expiresIn
+      type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

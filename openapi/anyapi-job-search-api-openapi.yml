@@ -1,0 +1,1277 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Job Search API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: job-search
+  x-group: Job_search
+paths:
+  /v1/run/job_search.theirstack:
+    post:
+      description: 'Search TheirStack''s job-post index by company, technology, keyword, title, seniority, salary, location and how recently the post appeared, and get the hiring company''s full firmographic record with every post. Billed per job returned.
+
+
+        **Price:** billed per result - \$67.20 per 1,000 results, capped at \$9,945.60 per 1,000 requests.
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Job Search - TheirStack pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Job_search endpoint.'
+      operationId: job_search_theirstack
+      parameters:
+      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              companyDomainOr:
+              - stripe.com
+              limit: 1
+              postedAtMaxAgeDays: 30
+            schema:
+              additionalProperties: false
+              example:
+                companyDomainOr:
+                - stripe.com
+                limit: 1
+                postedAtMaxAgeDays: 30
+              minProperties: 1
+              properties:
+                companyCountryCodeNot:
+                  description: Return companies whose HQ country code is not any of the ones passed here, case sensitive. Pass ISO2 country codes.
+                  items:
+                    type: string
+                  type: array
+                companyCountryCodeOr:
+                  description: Return companies whose HQ country code is any of the ones passed here, case sensitive. Pass ISO2 country codes.
+                  items:
+                    type: string
+                  type: array
+                companyDescriptionPatternAccentInsensitive:
+                  description: Set to True to make company description searches accent insensitive. For example, "á" will match "a" as well.
+                  type: boolean
+                companyDescriptionPatternNot:
+                  description: Case-insensitive patterns to match in the company description. Will return companies that match any of the patterns.
+                  items:
+                    type: string
+                  type: array
+                companyDescriptionPatternOr:
+                  description: Case-insensitive patterns to match in the company description. Will return companies that match any of the patterns.
+                  items:
+                    type: string
+                  type: array
+                companyDomainNot:
+                  description: Only return companies that don't match these domains exactly. It accepts full urls (https://www.google.com/) and emails (john.polo@gmail.com).
+                  items:
+                    type: string
+                  type: array
+                companyDomainOr:
+                  description: Only return companies that match these domains exactly. It accepts full urls (https://www.google.com/) and emails (john.polo@gmail.com). This filter acts as an OR filter, so if you pass more than one company domain, it will return companies that match any of the domains.
+                  items:
+                    type: string
+                  type: array
+                companyIdOr:
+                  description: Only return companies that match these IDs exactly. This filter acts as an OR filter, so if you pass more than one company ID, it will return companies that match any of the IDs.
+                  items:
+                    type: string
+                  type: array
+                companyInvestorsOr:
+                  description: Investors of the company
+                  items:
+                    type: string
+                  type: array
+                companyInvestorsPartialMatchOr:
+                  description: Investors of the company. Will return companies for which any of their investors contains any of the substrings passed here. For example, if you pass 'andree', all funds that match it (like 'Andreessen Horowitz', 'Andreessen Horowitz LLC', etc).
+                  items:
+                    type: string
+                  type: array
+                companyKeywordSlugAnd:
+                  description: Return results from companies that have mentioned all of these keywords in their jobs. Case sensitive. Pass slugs. Check out all the keywords we track at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                companyKeywordSlugNot:
+                  description: Return results from companies that haven't mentioned any of these keywords in their jobs. Case sensitive. Pass slugs. Check out all the keywords we track at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                companyKeywordSlugOr:
+                  description: Return results from companies that have mentioned any of these keywords in their jobs. Case sensitive. Pass slugs. Check out all the keywords we track at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                companyLinkedinUrlExists:
+                  description: (Use `property_exists_or / property_exists_and` instead) Only return companies with a LinkedIn URL
+                  type: boolean
+                companyLinkedinUrlOr:
+                  description: Return companies whose LinkedIn URL matches any of the slugs passed here. Can also pass full LinkedIn company URLs.
+                  items:
+                    type: string
+                  type: array
+                companyListIdNot:
+                  description: Return companies that don't belong to any of the company lists passed here
+                  items:
+                    type: string
+                  type: array
+                companyListIdOr:
+                  description: Return companies that belong to any of the company lists passed here
+                  items:
+                    type: string
+                  type: array
+                companyLocationPatternOr:
+                  description: Return companies whose city matches any of the patterns passed here. Case insensitive. For example, if you pass 'san francisco', it will return companies whose city is 'San Francisco', 'San Francisco Bay Area', etc.
+                  items:
+                    type: string
+                  type: array
+                companyNameCaseInsensitiveOr:
+                  description: Only return companies that match these names exactly, case-insensitively.
+                  items:
+                    type: string
+                  type: array
+                companyNameNot:
+                  description: Only return companies that don't match these names exactly, case-sensitively.
+                  items:
+                    type: string
+                  type: array
+                companyNameOr:
+                  description: Only return companies that match these names exactly, case-sensitively. This filter acts as an OR filter, so if you pass more than one company name, it will return companies that match any of the names.
+                  items:
+                    type: string
+                  type: array
+                companyNamePartialMatchNot:
+                  description: Company names. Will return companies whose name doesn't contain any of the the substrings passed here, case-insensitively. For example, if you pass 'google', it will exclude 'Google', 'Google LLC', 'Google Inc', etc.
+                  items:
+                    type: string
+                  type: array
+                companyNamePartialMatchOr:
+                  description: Company names. Will return companies whose name contain any of the the substrings passed here, case-insensitively. For example, if you pass "google", it will return "Google", "Google LLC", "Google Inc", etc.
+                  items:
+                    type: string
+                  type: array
+                companyTagsOr:
+                  description: Return companies that match any of these keywords
+                  items:
+                    type: string
+                  type: array
+                companyTechnologySlugAnd:
+                  description: 'Will return jobs from companies that that have mentioned all of these technologies in their jobs (not necessarily in the jobs returned). Case sensitive. Pass slugs. Check out all the technologies we track at GET /v0/catalog/technologies. Deprecated: use company_keyword_slug_and instead.'
+                  items:
+                    type: string
+                  type: array
+                companyTechnologySlugNot:
+                  description: 'Will return jobs from companies that that haven''t mentioned any of these technologies in their jobs. Case sensitive. Pass slugs. Check out all the technologies we track at GET /v0/catalog/technologies. Deprecated: use company_keyword_slug_not instead.'
+                  items:
+                    type: string
+                  type: array
+                companyTechnologySlugOr:
+                  description: 'Will return jobs from companies that that have mentioned any of these technologies in their jobs (not necessarily in the jobs returned). Case sensitive. Pass slugs. Check out all the technologies we track at GET /v0/catalog/technologies. Deprecated: use company_keyword_slug_or instead.'
+                  items:
+                    type: string
+                  type: array
+                companyType:
+                  description: Filter by company type.
+                  type: string
+                discoveredAtGte:
+                  description: Only jobs discovered by TheirStack on this date or datetime or after will be returned. In UTC timezone.
+                  type: string
+                discoveredAtLte:
+                  description: Only jobs discovered by TheirStack on this date or datetime or before will be returned. In UTC timezone.
+                  type: string
+                discoveredAtMaxAgeDays:
+                  description: If 0, only return jobs added to our database in the current day. If 1, from today and yesterday, etc.
+                  type: integer
+                discoveredAtMinAgeDays:
+                  description: If 1, only return jobs discovered by TheirStack until yesterday. If 2, until 2 days ago, etc.
+                  type: integer
+                easyApply:
+                  description: If True, only return jobs that can be applied directly through the job board. If False, only return jobs that require redirecting to the company's website.
+                  type: boolean
+                employmentStatusesOr:
+                  description: Filter jobs by employment status. Returns jobs that match any of the specified employment types. If no values are provided or an empty list is sent, all jobs regardless of employment status will be returned.
+                  items:
+                    type: string
+                  type: array
+                finalUrlExists:
+                  description: (Use `property_exists_or / property_exists_and` instead) Only return jobs with a final URL. Typically jobs that were originally posted on an ATS. If True, only return jobs with a final URL. If False, only return jobs without a final URL. If None, return all jobs.
+                  type: boolean
+                fundingStageOr:
+                  description: 'Funding stages of companies returned. Possible values: [''angel'', ''convertible_note'', ''debt_financing'', ''equity_crowdfunding'', ''other'', ''private_equity'', ''seed'', ''series_a'', ''series_b'', ''series_c'', ''series_d'', ''series_e'', ''series_f'', ''series_g'', ''series_h'', ''venture_round_not_specified'', ''series_i'', ''series_j'', ''undisclosed'', ''series_unknown'', ''pre_seed'', ''post_ipo_secondary'', ''post_ipo_equity'', ''post_ipo_debt'', ''non_equity_assistance'', ''late_vc'', ''initial_coin_offering'', ''growth_equity_vc'', ''grant'', ''early_vc'', ''corporate_round'', ''secondary_market'', ''product_crowdfunding'']'
+                  items:
+                    type: string
+                  type: array
+                hiringManagersExists:
+                  description: (Use `property_exists_or / property_exists_and` instead) If True, only return jobs with a hiring manager. If False, only return jobs without a hiring manager. If None, return all jobs.
+                  type: boolean
+                includeTotalResults:
+                  description: 'When enabled, calculates and returns `total_results` and `total_companies` fields in the response. WARNING: This significantly slows down responses as it requires reading the entire dataset. Recommended usage: enable only for the initial request to get totals, then disable for subsequent pagination requests.'
+                  type: boolean
+                industryIdNot:
+                  description: Industry ids to exclude.You can use any of LinkedIn's Industry Codes V2 or GET /v0/catalog/industries
+                  items:
+                    type: string
+                  type: array
+                industryIdOr:
+                  description: Industry codes. You can use any of LinkedIn's Industry Codes V2 or GET /v0/catalog/industries
+                  items:
+                    type: string
+                  type: array
+                industryNot:
+                  description: 'Names of industries, case-insensitive. Results will exclude companies that belong to any of the industries specified in this parameter. Available values: GET /v0/catalog/industries WARNING: Deprecated parameter. Use the industry_id_not field instead.'
+                  items:
+                    type: string
+                  type: array
+                industryOr:
+                  description: 'Names of industries, case-insensitive. Results will only include companies that belong to any of the industries specified in this parameter. Available values: GET /v0/catalog/industries WARNING: Deprecated parameter. Use the industry_id_or field instead.'
+                  items:
+                    type: string
+                  type: array
+                jobCountryCodeNot:
+                  description: 2-letter ISO country code of the location of the job. Can pass more than 1. Will exclude jobs from these countries
+                  items:
+                    type: string
+                  type: array
+                jobCountryCodeOr:
+                  description: 2-letter ISO country code of the location of the job. Can pass more than 1
+                  items:
+                    type: string
+                  type: array
+                jobDescriptionContainsNot:
+                  description: Exclude jobs whose description contains any of these whole words using word boundaries (\b). Case-insensitive by default, except for the patterns that are uppercase - in that case we'll respect it. Only finds complete words (e.g., searching 'quality' won't match 'inequality'). Results will exclude jobs whose description contains any of these words.
+                  items:
+                    type: string
+                  type: array
+                jobDescriptionContainsOr:
+                  description: Search for whole words in job descriptions using word boundaries (\b). Case-insensitive by default, except for the patterns that are uppercase - in that case we'll respect it. Only finds complete words (e.g., searching 'quality' won't match 'inequality'). Results will include jobs whose description contains any of these words.
+                  items:
+                    type: string
+                  type: array
+                jobDescriptionPatternAnd:
+                  description: Regex patterns that must ALL match the job description (AND logic). Use (?i) at the start of a pattern to make it case-insensitive. Results will only include jobs whose description matches every pattern in this list.
+                  items:
+                    type: string
+                  type: array
+                jobDescriptionPatternCaseSensitiveOr:
+                  description: Deprecated. Use job_description_pattern_or instead, which now behaves identically.
+                  items:
+                    type: string
+                  type: array
+                jobDescriptionPatternIsCaseInsensitive:
+                  description: Deprecated. Has no effect.
+                  type: boolean
+                jobDescriptionPatternNot:
+                  description: Regex patterns to look for in job descriptions. Case-sensitive. Results will include jobs whose description don't match any of these patterns. Use (?i) at the start of a pattern to make it case-insensitive. Can pass more than one.
+                  items:
+                    type: string
+                  type: array
+                jobDescriptionPatternOr:
+                  description: Regex patterns to look for in job descriptions. Case-sensitive. Results will include jobs whose description matches any of these patterns. Use (?i) at the start of a pattern to make it case-insensitive. Can pass more than one.
+                  items:
+                    type: string
+                  type: array
+                jobIdNot:
+                  description: Exclude jobs with these IDs.
+                  items:
+                    type: string
+                  type: array
+                jobIdOr:
+                  description: Get jobs with these IDs only.
+                  items:
+                    type: string
+                  type: array
+                jobIds:
+                  description: Get jobs with these IDs only. Deprecated parameter, use job_id_or instead.
+                  items:
+                    type: string
+                  type: array
+                jobKeywordSlugAnd:
+                  description: Will return jobs where all of these keyword slugs appear. Case sensitive. Check out all the keywords we track at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                jobKeywordSlugNot:
+                  description: Will return jobs where none of these keyword slugs appear. Case sensitive. Check out all the keywords we track at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                jobKeywordSlugOr:
+                  description: Will return jobs where any of these keyword slugs appear. Case sensitive. Check out all the keywords we track at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                jobLocationNot:
+                  description: Filter jobs by location. Returns jobs whose locations DO NOT match ANY of the specified location criteria. Each location criteria is specified using a JobLocationFilter object. (You can find location IDs using the locations catalog endpoint)
+                  items:
+                    type: string
+                  type: array
+                jobLocationOr:
+                  description: Filter jobs by location. Returns jobs whose locations match ANY of the specified location criteria. Each location criteria is specified using a JobLocationFilter object. (You can find location IDs using the locations catalog endpoint)
+                  items:
+                    type: string
+                  type: array
+                jobLocationPatternNot:
+                  description: Regex patterns to exclude job locations. Case-insensitive. Searches both the location field and the enhanced locations array (using normalized city and state name fields within each location element). Jobs matching ANY of the provided patterns will be EXCLUDED from results. Use this to filter out specific locations.
+                  items:
+                    type: string
+                  type: array
+                jobLocationPatternOr:
+                  description: Regex patterns to match job locations. Case-insensitive. Searches both the location field and the enhanced locations array (using normalized city and state name fields within each location element). Jobs matching ANY of the provided patterns will be returned. Use this to find jobs in specific cities, states, or regions.
+                  items:
+                    type: string
+                  type: array
+                jobSeniorityOr:
+                  description: Will return jobs where the seniority is any of the ones passed here
+                  items:
+                    type: string
+                  type: array
+                jobTechnologySlugAnd:
+                  description: Will return jobs where all of these technologies appear. Case sensitive. Pass slugs. Check out all the technologies we track with the technologies endpoint.
+                  items:
+                    type: string
+                  type: array
+                jobTechnologySlugNot:
+                  description: Will return jobs where none of these technologies appear. Case sensitive. Pass slugs. Check out all the technologies we track with the technologies endpoint.
+                  items:
+                    type: string
+                  type: array
+                jobTechnologySlugOr:
+                  description: Will return jobs where any of these technologies appear. Case sensitive. Pass slugs. Check out all the technologies we track with the technologies endpoint. If you pass more than one technology, we will return jobs that mentnion all of the technologies.
+                  items:
+                    type: string
+                  type: array
+                jobTitleNot:
+                  description: Natural language patterns to match job titles. Case-insensitive. Only jobs with title that do not match any of these patterns will be returned. Uses Postgres full text search.
+                  items:
+                    type: string
+                  type: array
+                jobTitleOr:
+                  description: Natural language patterns to match job titles. Case-insensitive. Only jobs with title that match any of these patterns will be returned. Uses Postgres full text search.
+                  items:
+                    type: string
+                  type: array
+                jobTitlePatternAnd:
+                  description: Regex patterns to match job titles. Case-insensitive. Only jobs with title that match all of these patterns will be returned.
+                  items:
+                    type: string
+                  type: array
+                jobTitlePatternNot:
+                  description: Regex patterns to match job titles. Case-insensitive. Jobs whose job title doesn't match any of the patterns will be returned.
+                  items:
+                    type: string
+                  type: array
+                jobTitlePatternOr:
+                  description: Regex patterns to match job titles. Case-insensitive. Jobs whose job title matches of the filters will be returned.
+                  items:
+                    type: string
+                  type: array
+                lastFundingRoundDateGte:
+                  description: 'Only return companies whose last funding round date is after or on this date. Format: ''YYYY-MM-DD'''
+                  type: string
+                lastFundingRoundDateLte:
+                  description: 'Only return companies whose last funding round date is before or on this date. Format: ''YYYY-MM-DD'''
+                  type: string
+                limit:
+                  default: 25
+                  description: Rows to return on this page, up to TheirStack's maximum of 500. Every row returned is billed.
+                  maximum: 148
+                  minimum: 1
+                  type: integer
+                maxEmployeeCount:
+                  description: Maximum number of employees in a company
+                  type: integer
+                maxEmployeeCountOrNull:
+                  description: Maximum number of employees in a company. If we don't have company size information, we will return it as well.
+                  type: integer
+                maxFundingUsd:
+                  description: Maximum company funding, in USD
+                  type: integer
+                maxRevenueUsd:
+                  description: Maximum company revenue, in USD
+                  type: integer
+                maxSalaryUsd:
+                  description: Maximum annual salary in USD. For example, 150000 means $150,000.
+                  type: number
+                minEmployeeCount:
+                  description: Minimum number of employees in a company
+                  type: integer
+                minEmployeeCountOrNull:
+                  description: Minimum number of employees in a company. If we don't have company size information, we will return it as well.
+                  type: integer
+                minFundingUsd:
+                  description: Minimum company funding, in USD
+                  type: integer
+                minRevenueUsd:
+                  description: Minimum company revenue, in USD
+                  type: integer
+                minSalaryUsd:
+                  description: Minimum annual salary in USD. For example, 100000 means $100,000.
+                  type: number
+                offset:
+                  description: Number of results to skip. Required for offset-based pagination.
+                  type: integer
+                onlyJobsWithHiringManagers:
+                  description: Only return jobs with a hiring manager. If True, only return jobs with a hiring manager. If False, only return jobs without a hiring manager. If None, return all jobs.
+                  type: boolean
+                onlyJobsWithReportsTo:
+                  description: Only return jobs where we identified the role the hired person would report to. Deprecated field, use reports_to_exists instead.
+                  type: boolean
+                onlyYcCompanies:
+                  description: Only return YC companies
+                  type: boolean
+                orderBy:
+                  description: List of column objects. You can pass several columns to order by, in order of priority. Only `field` is required, `desc` is True by default.
+                  items:
+                    type: string
+                  type: array
+                page:
+                  description: Page number. Required when using page-based pagination.
+                  type: integer
+                postedAtGte:
+                  description: ISO 8601 date string (yyyy-mm-dd). Only jobs published in this date or after will be returned.
+                  type: string
+                postedAtLte:
+                  description: ISO 8601 date string (yyyy-mm-dd). Only jobs published in this date or before will be returned.
+                  type: string
+                postedAtMaxAgeDays:
+                  description: Date posted max age in days. If 0, only return jobs posted today. If 1, from today and yesterday, etc.
+                  type: integer
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                propertyExistsAnd:
+                  items:
+                    type: string
+                  type: array
+                propertyExistsOr:
+                  description: Return jobs that have any of these fields not null. For example, if you pass ['final_url'], it will return jobs that have a final_url set. This field also support chaining of fields. For example, if you pass ['company_object.domain', 'company_object.linkedin_url'], it will return jobs that have a company domain or a company linkedin_url set.
+                  items:
+                    type: string
+                  type: array
+                remote:
+                  description: 'True: only show remote jobs. False: only show non-remote jobs. None: show all jobs.'
+                  type: boolean
+                reportsToExists:
+                  description: Only return jobs where we identified the role the hired person would report to. If True, only return jobs where we identified the role the hired person would report to. If False, only return jobs where we didn't identify the role the hired person would report to. If None, return all jobs.
+                  type: boolean
+                scraperNamePatternOr:
+                  description: Regex patterns to match job sources. Case-insensitive.
+                  items:
+                    type: string
+                  type: array
+                urlDomainNot:
+                  description: Exclude jobs if their URL domain (from `url` or `source_url`) is in the provided case-insensitive list. For example, ['greenhouse.io', 'workable.com'] will exclude URLs containing 'greenhouse.io' or 'workable.com'. Refer to our list of sources at https://theirstack.com/en/docs/data/job/sources.
+                  items:
+                    type: string
+                  type: array
+                urlDomainOr:
+                  description: Include jobs only if their URL domain (from `url` or `source_url`) is in the provided case-insensitive list. For example, ['greenhouse.io', 'workable.com'] will match URLs containing 'greenhouse.io' or 'workable.com'. Refer to our list of sources at https://theirstack.com/en/docs/data/job/sources.
+                  items:
+                    type: string
+                  type: array
+              title: Job Search - TheirStack input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    type: string
+                  items:
+                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The matching rows plus TheirStack's result counters.
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              jobs:
+                                description: Matching job posts, each carrying the hiring company's firmographic record.
+                                items:
+                                  properties:
+                                    avgAnnualSalaryUsd:
+                                      description: Midpoint of the posted annual salary, converted to USD.
+                                      type: number
+                                    cities:
+                                      description: Every city the post covers.
+                                      items:
+                                        type: string
+                                      type: array
+                                    closedUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time) the post closed. Multiply by 1000 for a JS Date in milliseconds.
+                                      type: number
+                                    company:
+                                      description: The hiring company's full TheirStack firmographic record.
+                                      properties:
+                                        alexaRanking:
+                                          description: Alexa traffic rank for the company website.
+                                          type: integer
+                                        annualRevenueReadable:
+                                          description: Estimated annual revenue as a display string, e.g. 4.2M.
+                                          type: string
+                                        annualRevenueUsd:
+                                          description: Estimated annual revenue in USD.
+                                          type: number
+                                        apolloId:
+                                          description: Apollo's identifier for the same company.
+                                          type: string
+                                        city:
+                                          description: Headquarters city.
+                                          type: string
+                                        companyId:
+                                          description: TheirStack's own company identifier.
+                                          type: string
+                                        companyKeywords:
+                                          description: Keywords TheirStack assigns the company.
+                                          items:
+                                            type: string
+                                          type: array
+                                        companyTags:
+                                          description: Tags TheirStack assigns the company.
+                                          items:
+                                            type: string
+                                          type: array
+                                        country:
+                                          description: Headquarters country.
+                                          type: string
+                                        countryCode:
+                                          description: ISO 3166-1 alpha-2 country code.
+                                          type: string
+                                        domain:
+                                          description: Primary company domain.
+                                          type: string
+                                        employeeCount:
+                                          description: Employees TheirStack currently counts.
+                                          type: integer
+                                        employeeCountRange:
+                                          description: Employee headcount band, e.g. 201-500.
+                                          type: string
+                                        foundedYear:
+                                          description: Year the company was founded.
+                                          type: integer
+                                        fundingStage:
+                                          description: Most recent funding stage, e.g. series_b.
+                                          type: string
+                                        hasBlurredData:
+                                          description: True when TheirStack redacted part of the record on this plan.
+                                          type: boolean
+                                        image:
+                                          description: Company logo URL.
+                                          format: uri
+                                          type: string
+                                        industry:
+                                          description: Company industry.
+                                          type: string
+                                        industryId:
+                                          description: TheirStack's identifier for that industry.
+                                          type: string
+                                        investors:
+                                          description: Investors TheirStack records for the company.
+                                          items:
+                                            type: string
+                                          type: array
+                                        isRecruitingAgency:
+                                          description: True when TheirStack classifies the company as a recruiting agency rather than a direct employer.
+                                          type: boolean
+                                        keywordSlugs:
+                                          description: Keyword slugs found in the company's job posts. These are the values the keyword filters take.
+                                          items:
+                                            type: string
+                                          type: array
+                                        lastFundingRoundReadable:
+                                          description: Most recent round size as a display string, e.g. $15M.
+                                          type: string
+                                        lastFundingRoundUtc:
+                                          description: UTC epoch timestamp in seconds (Unix time) of the most recent funding round. Multiply by 1000 for a JS Date in milliseconds.
+                                          type: number
+                                        linkedinId:
+                                          description: Company LinkedIn numeric id.
+                                          type: string
+                                        linkedinUrl:
+                                          description: Company LinkedIn page URL.
+                                          format: uri
+                                          type: string
+                                        longDescription:
+                                          description: Company description as the company writes it.
+                                          type: string
+                                        name:
+                                          description: Company name.
+                                          type: string
+                                        numBuyingIntentTopics:
+                                          description: Distinct buying-intent topics detected in the company's job posts.
+                                          type: integer
+                                        numJobs:
+                                          description: Job posts TheirStack holds for the company, all time.
+                                          type: integer
+                                        numJobsLast30Days:
+                                          description: Job posts published in the last 30 days.
+                                          type: integer
+                                        numKeywords:
+                                          description: Distinct keywords detected in the company's job posts.
+                                          type: integer
+                                        numTechnologies:
+                                          description: Distinct technologies detected in the company's job posts.
+                                          type: integer
+                                        possibleDomains:
+                                          description: Every domain TheirStack associates with the company.
+                                          items:
+                                            type: string
+                                          type: array
+                                        postalCode:
+                                          description: Headquarters postal code.
+                                          type: string
+                                        publiclyTradedExchange:
+                                          description: Exchange the company lists on.
+                                          type: string
+                                        publiclyTradedSymbol:
+                                          description: Stock ticker, for listed companies.
+                                          type: string
+                                        seoDescription:
+                                          description: Meta description from the company's website.
+                                          type: string
+                                        technologyNames:
+                                          description: Human-readable names for those technologies.
+                                          items:
+                                            type: string
+                                          type: array
+                                        technologySlugs:
+                                          description: Technology slugs found in the company's job posts. These are the values the technology filters take.
+                                          items:
+                                            type: string
+                                          type: array
+                                        totalFundingUsd:
+                                          description: Total capital raised, in USD.
+                                          type: number
+                                        url:
+                                          description: Company website URL.
+                                          format: uri
+                                          type: string
+                                        ycBatch:
+                                          description: Y Combinator batch, e.g. W20, for companies that went through it.
+                                          type: string
+                                      type: object
+                                    companyDomain:
+                                      description: Hiring company domain.
+                                      type: string
+                                    companyName:
+                                      description: Hiring company name.
+                                      type: string
+                                    continents:
+                                      description: Every continent the post covers.
+                                      items:
+                                        type: string
+                                      type: array
+                                    countries:
+                                      description: Every country the post covers.
+                                      items:
+                                        type: string
+                                      type: array
+                                    country:
+                                      description: Country name.
+                                      type: string
+                                    countryCode:
+                                      description: ISO 3166-1 alpha-2 country code.
+                                      type: string
+                                    countryCodes:
+                                      description: Every country code the post covers.
+                                      items:
+                                        type: string
+                                      type: array
+                                    description:
+                                      description: Full job description text.
+                                      type: string
+                                    discoveredUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time) TheirStack first saw the post. Multiply by 1000 for a JS Date in milliseconds.
+                                      type: number
+                                    easyApply:
+                                      description: True when the post supports one-click apply.
+                                      type: boolean
+                                    employmentStatuses:
+                                      description: Employment types, e.g. full_time.
+                                      items:
+                                        type: string
+                                      type: array
+                                    finalUrl:
+                                      description: URL the post redirects to, when it does.
+                                      format: uri
+                                      type: string
+                                    hasBlurredData:
+                                      description: True when TheirStack redacted part of the record on this plan.
+                                      type: boolean
+                                    hybrid:
+                                      description: True for a hybrid role.
+                                      type: boolean
+                                    jobId:
+                                      description: TheirStack's own identifier for the post.
+                                      type: string
+                                    keywordSlugs:
+                                      description: Keyword slugs found in the post.
+                                      items:
+                                        type: string
+                                      type: array
+                                    latitude:
+                                      description: Latitude of the posted location.
+                                      type: number
+                                    location:
+                                      description: Location as posted.
+                                      type: string
+                                    locations:
+                                      description: Every resolved location the post covers, with TheirStack's geographic breakdown.
+                                      items:
+                                        properties:
+                                          address:
+                                            description: Street address, when the post gives one.
+                                            type: string
+                                          admin1Code:
+                                            description: First-level administrative division code.
+                                            type: string
+                                          admin1Name:
+                                            description: First-level administrative division name.
+                                            type: string
+                                          admin2Code:
+                                            description: Second-level administrative division code.
+                                            type: string
+                                          admin2Name:
+                                            description: Second-level administrative division name.
+                                            type: string
+                                          city:
+                                            description: City.
+                                            type: string
+                                          continent:
+                                            description: Continent code, e.g. NA.
+                                            type: string
+                                          country:
+                                            description: Country name.
+                                            type: string
+                                          countryCode:
+                                            description: ISO 3166-1 alpha-2 country code.
+                                            type: string
+                                          displayName:
+                                            description: Location as one display string.
+                                            type: string
+                                          featureCode:
+                                            description: GeoNames feature code for the place.
+                                            type: string
+                                          latitude:
+                                            description: Latitude.
+                                            type: number
+                                          locationId:
+                                            description: TheirStack's identifier for the place.
+                                            type: string
+                                          longitude:
+                                            description: Longitude.
+                                            type: number
+                                          name:
+                                            description: Location name.
+                                            type: string
+                                          postalCode:
+                                            description: Postal code.
+                                            type: string
+                                          state:
+                                            description: State or region.
+                                            type: string
+                                          stateCode:
+                                            description: State or region code.
+                                            type: string
+                                          type:
+                                            description: Granularity of the place, e.g. city, state, country.
+                                            type: string
+                                        required:
+                                        - name
+                                        type: object
+                                      type: array
+                                    longLocation:
+                                      description: Long form of the location.
+                                      type: string
+                                    longitude:
+                                      description: Longitude of the posted location.
+                                      type: number
+                                    managerRoles:
+                                      description: Manager roles TheirStack extracted from the post.
+                                      items:
+                                        type: string
+                                      type: array
+                                    matchingPhrases:
+                                      description: Phrases from your pattern filters that matched this post.
+                                      items:
+                                        type: string
+                                      type: array
+                                    matchingWords:
+                                      description: Words from your pattern filters that matched this post.
+                                      items:
+                                        type: string
+                                      type: array
+                                    maxAnnualSalary:
+                                      description: Upper bound of the posted annual salary, in the posted currency.
+                                      type: number
+                                    maxAnnualSalaryUsd:
+                                      description: Upper bound of the posted annual salary, converted to USD.
+                                      type: number
+                                    minAnnualSalary:
+                                      description: Lower bound of the posted annual salary, in the posted currency.
+                                      type: number
+                                    minAnnualSalaryUsd:
+                                      description: Lower bound of the posted annual salary, converted to USD.
+                                      type: number
+                                    normalizedTitle:
+                                      description: TheirStack's normalized form of the title.
+                                      type: string
+                                    postalCode:
+                                      description: Postal code.
+                                      type: string
+                                    postedUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time) the job was posted. Multiply by 1000 for a JS Date in milliseconds.
+                                      type: number
+                                    remote:
+                                      description: True for a fully remote role.
+                                      type: boolean
+                                    reposted:
+                                      description: True when the post is a repost of an earlier one.
+                                      type: boolean
+                                    repostedUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time) the post was last reposted. Multiply by 1000 for a JS Date in milliseconds.
+                                      type: number
+                                    salaryCurrency:
+                                      description: Currency the posted salary is in.
+                                      type: string
+                                    salaryString:
+                                      description: Salary exactly as the post states it.
+                                      type: string
+                                    seniority:
+                                      description: Seniority band TheirStack assigns, e.g. mid_level.
+                                      type: string
+                                    shortLocation:
+                                      description: Short form of the location.
+                                      type: string
+                                    sourceUrl:
+                                      description: URL TheirStack found the post at.
+                                      format: uri
+                                      type: string
+                                    stateCode:
+                                      description: State or region code.
+                                      type: string
+                                    technologySlugs:
+                                      description: Technology slugs found in the post.
+                                      items:
+                                        type: string
+                                      type: array
+                                    title:
+                                      description: Job title as posted.
+                                      type: string
+                                    url:
+                                      description: URL of the job post.
+                                      format: uri
+                                      type: string
+                                  required:
+                                  - jobId
+                                  - title
+                                  type: object
+                                type: array
+                              totalCompanies:
+                                description: Distinct companies matching the filters. TheirStack computes it only when you send includeTotalResults.
+                                type: integer
+                              totalResults:
+                                description: Rows matching the filters across all pages. TheirStack computes it only when you send includeTotalResults, and omits it otherwise.
+                                type: integer
+                              truncatedCompanies:
+                                description: Companies TheirStack withheld because the plan's result ceiling was reached.
+                                type: integer
+                              truncatedResults:
+                                description: Rows TheirStack withheld because the plan's result ceiling was reached.
+                                type: integer
+                            required:
+                            - jobs
+                            type: object
+                        found:
+                          description: False when nothing matched the filters.
+                          type: boolean
+                      required:
+                      - found
+                      - data
+                      title: Job Search - TheirStack output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown SKU, or the upstream had no matching resource.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Job Search - TheirStack
+      tags:
+      - job-search
+      x-mint:
+        href: /api-reference/job-search/theirstack
+      x-payment-info:
+        price:
+          currency: USD
+          max: '9.945600'
+          min: '0.000000'
+          mode: dynamic
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            currency: USD
+            max: '9.945600'
+            min: '0.001000'
+            minimumUsd: '0.001000'
+            mode: dynamic
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            currency: USD
+            max: '9.945600'
+            min: '0.000000'
+            minimumUsd: null
+            mode: dynamic
+            quoteBasis: funded_ceiling
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+components:
+  schemas:
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    DeviceUpgrade:
+      properties:
+        deviceCode:
+          type: string
+        expiresIn:
+          minimum: 0
+          type: integer
+        grantType:
+          type: string
+        interval:
+          minimum: 1
+          type: integer
+        tokenEndpoint:
+          format: uri
+          type: string
+        userCode:
+          type: string
+        verificationUri:
+          format: uri
+          type: string
+        verificationUriComplete:
+          format: uri
+          type: string
+      required:
+      - verificationUriComplete
+      - verificationUri
+      - userCode
+      - deviceCode
+      - tokenEndpoint
+      - grantType
+      - interval
+      - expiresIn
+      type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

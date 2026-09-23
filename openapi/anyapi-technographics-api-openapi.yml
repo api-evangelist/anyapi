@@ -1,0 +1,638 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Technographics API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: technographics
+  x-group: Technographics
+paths:
+  /v1/run/technographics.theirstack:
+    post:
+      description: 'Read the technology stack TheirStack detects for a company from its job posts, with how many posts mention each technology, when it was first and last seen, and how dominant it is within its category. Billed per technology returned.
+
+
+        **Price:** billed per result - \$199.20 per 1,000 results, capped at \$9,960.00 per 1,000 requests.
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Technographics - TheirStack pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Technographics endpoint.'
+      operationId: technographics_theirstack
+      parameters:
+      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              companyDomain: posthog.com
+              limit: 1
+            schema:
+              additionalProperties: false
+              example:
+                companyDomain: posthog.com
+                limit: 1
+              minProperties: 1
+              properties:
+                companyDomain:
+                  description: Only return companies that match this domain exactly. It accepts full urls (https://www.google.com/) and emails (john.polo@gmail.com).
+                  type: string
+                companyId:
+                  description: Only return companies that match this TheirStack Company ID exactly. This ID is temporary and internal and will change in the future and become stable. Until then, it is only meant to be used internally by our UI (app.theirstack.com). For deduplication logic, use company_domain or company_linkedin_url instead.
+                  type: string
+                companyKeywordSlugOr:
+                  description: Return companies that have mentioned any of these keywords (technologies or buying intent topics) in their jobs. Case sensitive. Pass slugs. Check out all keywords at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                companyLinkedinUrl:
+                  description: Return companies whose LinkedIn URL matches this URL exactly.
+                  type: string
+                companyName:
+                  description: Only return companies that match this name exactly, case-sensitively.
+                  type: string
+                companyNameOr:
+                  description: Only return companies that match these names exactly, case-sensitively. Deprecated, use the `company_name` filter instead.
+                  items:
+                    type: string
+                  type: array
+                companyTechnologySlugOr:
+                  description: Return companies that have mentioned any of these keywords (technologies or buying intent topics) in their jobs. Case sensitive. Pass slugs. Check out all keywords at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                confidenceOr:
+                  description: 'Returns technologies with any of these confidence values that the companies use them. Available values: "high", "medium", "low"'
+                  items:
+                    type: string
+                  type: array
+                firstDateFoundGte:
+                  description: 'Only return technologies where the first time they were found was after or on this date. Format: "YYYY-MM-DD"'
+                  type: string
+                firstDateFoundLte:
+                  description: 'Only return technologies where the first time they were found was before or on this date. Format: "YYYY-MM-DD"'
+                  type: string
+                includeTotalResults:
+                  description: 'When enabled, calculates and returns `total_results` and `total_companies` fields in the response. WARNING: This significantly slows down responses as it requires reading the entire dataset. Recommended usage: enable only for the initial request to get totals, then disable for subsequent pagination requests.'
+                  type: boolean
+                keywordCategorySlugOr:
+                  description: Return companies that have mentioned any keyword from any of these categories in their jobs. Case sensitive. Pass slugs. Check out all keyword categories at GET /v0/catalog/keywords/categories
+                  items:
+                    type: string
+                  type: array
+                keywordParentCategorySlugOr:
+                  description: Return companies that have mentioned any keyword from any of these parent categories in their jobs. Case sensitive. Pass slugs. Check out all keyword categories at GET /v0/catalog/keywords/categories
+                  items:
+                    type: string
+                  type: array
+                keywordSlugOr:
+                  description: Return companies that have mentioned any of these keywords (technologies or buying intent topics) in their jobs. Case sensitive. Pass slugs. Check out all keywords at GET /v0/catalog/keywords
+                  items:
+                    type: string
+                  type: array
+                lastDateFoundGte:
+                  description: 'Only return technologies where the last time they were found was after or on this date. Format: "YYYY-MM-DD"'
+                  type: string
+                lastDateFoundLte:
+                  description: 'Only return technologies where the last time they were found was before or on this date. Format: "YYYY-MM-DD"'
+                  type: string
+                limit:
+                  default: 25
+                  description: Rows to return on this page, up to TheirStack's maximum of 500. Every row returned is billed.
+                  maximum: 50
+                  minimum: 1
+                  type: integer
+                maxJobs:
+                  description: Maximum number of jobs found by each company using a technology
+                  type: integer
+                maxRank:
+                  description: 'The rank measures how common is a technology within its category. The technology most used among similar ones by a company will have a rank of 1, the second: 2, etc. This is useful to filter results by technology and get only results for the primary technology.'
+                  type: integer
+                minJobs:
+                  description: Minimum number of jobs found by each company using a technology
+                  type: integer
+                minRelativeOccurrence:
+                  description: Minimum value of relative_occurrence_within_category for each technology. Higher values increase the probability that this technology is actually used by the company, because it means a higher percentage of mentions to technologies among this category are of this technology.
+                  type: number
+                offset:
+                  description: Number of results to skip. Required for offset-based pagination.
+                  type: integer
+                orderBy:
+                  description: List of column objects. You can pass several columns to order by, in order of priority. Only `field` is required, `desc` is True by default.
+                  items:
+                    type: string
+                  type: array
+                page:
+                  description: Page number. Required when using page-based pagination.
+                  type: integer
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                technologyCategorySlugOr:
+                  description: 'Deprecated: use `keyword_category_slug_or` instead. Will return companies that have mentioned any keyword from any of these categories in their jobs. Case sensitive. Pass slugs.'
+                  items:
+                    type: string
+                  type: array
+                technologyParentCategorySlugOr:
+                  description: 'Deprecated: use `keyword_parent_category_slug_or` instead. Will return companies that have mentioned any keyword from any of these parent categories in their jobs. Case sensitive. Pass slugs.'
+                  items:
+                    type: string
+                  type: array
+                technologySlugOr:
+                  description: 'Deprecated: use `keyword_slug_or` instead. Will return companies that have mentioned any of these technologies in their jobs. Case sensitive. Pass slugs.'
+                  items:
+                    type: string
+                  type: array
+              title: Technographics - TheirStack input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    type: string
+                  items:
+                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The matching rows plus TheirStack's result counters.
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              technologies:
+                                description: Technologies detected for the company, most prominent first.
+                                items:
+                                  properties:
+                                    confidence:
+                                      description: 'How sure TheirStack is that the company uses it: high, medium or low.'
+                                      type: string
+                                    firstFoundUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time) the technology was first seen. Multiply by 1000 for a JS Date in milliseconds.
+                                      type: number
+                                    jobs:
+                                      description: Job posts mentioning the technology, all time.
+                                      type: integer
+                                    jobsLast180Days:
+                                      description: Job posts mentioning it in the last 180 days.
+                                      type: integer
+                                    jobsLast30Days:
+                                      description: Job posts mentioning it in the last 30 days.
+                                      type: integer
+                                    jobsLast7Days:
+                                      description: Job posts mentioning it in the last 7 days.
+                                      type: integer
+                                    lastFoundUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time) the technology was last seen. Multiply by 1000 for a JS Date in milliseconds.
+                                      type: number
+                                    rankWithinCategory:
+                                      description: Rank of this technology among the company's technologies in the same category, 1 being the most used.
+                                      type: integer
+                                    relativeOccurrenceWithinCategory:
+                                      description: Share of the company's mentions within this category that are of this technology, 0 to 1. A higher value means the company more likely really uses it.
+                                      type: number
+                                    technology:
+                                      description: The technology itself.
+                                      properties:
+                                        category:
+                                          description: Category the technology sits in, e.g. Languages.
+                                          type: string
+                                        categorySlug:
+                                          description: Slug for that category.
+                                          type: string
+                                        image:
+                                          description: Technology logo URL.
+                                          format: uri
+                                          type: string
+                                        name:
+                                          description: Technology name, e.g. Python.
+                                          type: string
+                                        parentCategory:
+                                          description: Parent category, e.g. Programming Languages And Frameworks.
+                                          type: string
+                                        parentCategorySlug:
+                                          description: Slug for that parent category.
+                                          type: string
+                                        slug:
+                                          description: Technology slug. This is the value the technology filters take.
+                                          type: string
+                                        thumbnail:
+                                          description: Smaller technology logo URL.
+                                          format: uri
+                                          type: string
+                                        type:
+                                          description: Whether the row is a technology or a buying-intent keyword.
+                                          type: string
+                                      type: object
+                                  required:
+                                  - confidence
+                                  type: object
+                                type: array
+                              totalCompanies:
+                                description: Distinct companies matching the filters. TheirStack computes it only when you send includeTotalResults.
+                                type: integer
+                              totalResults:
+                                description: Rows matching the filters across all pages. TheirStack computes it only when you send includeTotalResults, and omits it otherwise.
+                                type: integer
+                              truncatedCompanies:
+                                description: Companies TheirStack withheld because the plan's result ceiling was reached.
+                                type: integer
+                              truncatedResults:
+                                description: Rows TheirStack withheld because the plan's result ceiling was reached.
+                                type: integer
+                            required:
+                            - technologies
+                            type: object
+                        found:
+                          description: False when nothing matched the filters.
+                          type: boolean
+                      required:
+                      - found
+                      - data
+                      title: Technographics - TheirStack output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown SKU, or the upstream had no matching resource.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Technographics - TheirStack
+      tags:
+      - technographics
+      x-mint:
+        href: /api-reference/technographics/theirstack
+      x-payment-info:
+        price:
+          currency: USD
+          max: '9.960000'
+          min: '0.000000'
+          mode: dynamic
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            currency: USD
+            max: '9.960000'
+            min: '0.001000'
+            minimumUsd: '0.001000'
+            mode: dynamic
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            currency: USD
+            max: '9.960000'
+            min: '0.000000'
+            minimumUsd: null
+            mode: dynamic
+            quoteBasis: funded_ceiling
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+components:
+  schemas:
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    DeviceUpgrade:
+      properties:
+        deviceCode:
+          type: string
+        expiresIn:
+          minimum: 0
+          type: integer
+        grantType:
+          type: string
+        interval:
+          minimum: 1
+          type: integer
+        tokenEndpoint:
+          format: uri
+          type: string
+        userCode:
+          type: string
+        verificationUri:
+          format: uri
+          type: string
+        verificationUriComplete:
+          format: uri
+          type: string
+      required:
+      - verificationUriComplete
+      - verificationUri
+      - userCode
+      - deviceCode
+      - tokenEndpoint
+      - grantType
+      - interval
+      - expiresIn
+      type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

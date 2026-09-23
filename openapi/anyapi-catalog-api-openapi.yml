@@ -1,0 +1,445 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Catalog API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: Catalog
+paths:
+  /catalog:
+    get:
+      description: 'Every API AnyAPI can serve right now, with its normalized input and output contract''s location, its USD pricing, and the sources behind it. Reading the catalog is free and needs no key. Each entry''s `method` and `path` are the gateway''s own authority on how to call it: use them rather than rebuilding a route from the slug. Schemas are omitted here to keep the response small; GET /v1/apis/{sku} returns them for one API.'
+      operationId: browseCatalog
+      parameters:
+      - description: Restrict the response to one category, using an entry's `category`.
+        in: query
+        name: category
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  apis:
+                    items:
+                      $ref: '#/components/schemas/CatalogAPI'
+                    type: array
+                required:
+                - apis
+                type: object
+          description: The customer-safe catalog.
+      security: []
+      summary: Browse the API catalog
+      tags:
+      - Catalog
+  /catalog/search:
+    get:
+      description: 'Find an API by what you need rather than by its slug. Results are ranked, and `ranking` names the ranker that served them. A request must name `q`, `category`, or `platform`: a scope on its own is a complete question ("everything this platform can do"), while a request naming none of the three has nothing to answer and is rejected. Searching is free and needs no key. Feed a result''s `slug` to GET /v1/apis/{sku} for its input schema before your first run.'
+      operationId: searchCatalog
+      parameters:
+      - description: What you need, in your own words. Long queries are truncated before ranking.
+        in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - description: Restrict the response to one category, using an entry's `category`.
+        in: query
+        name: category
+        required: false
+        schema:
+          type: string
+      - description: Restrict results to one platform, using a result's `platformId`.
+        in: query
+        name: platform
+        required: false
+        schema:
+          type: string
+      - description: Maximum results in this response. Omit it for the ranked default. A value above the server's maximum is reduced to it rather than rejected, and `total` still reports how many matched.
+        in: query
+        name: limit
+        required: false
+        schema:
+          minimum: 1
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  ranking:
+                    description: Which ranker served this response.
+                    enum:
+                    - keyword
+                    - semantic
+                    type: string
+                  results:
+                    items:
+                      $ref: '#/components/schemas/CatalogSearchResult'
+                    type: array
+                  total:
+                    description: Matches found before `limit` was applied.
+                    type: integer
+                required:
+                - results
+                - total
+                - ranking
+                type: object
+          description: Ranked matches.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request named neither a query nor a scope.
+      security: []
+      summary: Search the API catalog
+      tags:
+      - Catalog
+components:
+  schemas:
+    DiscoveryOffer:
+      properties:
+        baseUsd:
+          description: 'Linear offers only: USD charged for the call before per-unit billing.'
+          type: number
+        maxPer1kUsd:
+          description: The same maximum in the per-1,000-request denomination AnyAPI quotes customers in. It is published rather than left to the client, so display this figure instead of scaling a price yourself.
+          type: number
+        maxUsd:
+          description: The most one request on this offer can be billed, in USD.
+          type: number
+        model:
+          description: Pricing model. A flat offer is one price per request; a linear offer also carries baseUsd and perUnitUsd.
+          enum:
+          - flat
+          - linear
+          type: string
+        perUnitUsd:
+          description: 'Linear offers only: USD charged for each billable unit inside the call.'
+          type: number
+        unit:
+          description: The billable unit. A flat offer always publishes "request".
+          type: string
+      required:
+      - model
+      - unit
+      - maxUsd
+      - maxPer1kUsd
+      type: object
+    DiscoveryExecution:
+      properties:
+        mode:
+          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
+          enum:
+          - sync
+          - durable
+          type: string
+      required:
+      - mode
+      type: object
+    DiscoveryPricing:
+      properties:
+        failoverMaxPer1kUsd:
+          description: failoverMaxUsd in the per-1,000-request denomination.
+          type: number
+        failoverMaxUsd:
+          description: The greatest customer-price maximum across those same sources, in USD.
+          type: number
+        from:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
+      required:
+      - from
+      - failoverMaxUsd
+      - failoverMaxPer1kUsd
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    DiscoverySourceHealth:
+      properties:
+        latencyP50Ms:
+          description: Median successful service time for this source, in milliseconds.
+          type: integer
+        latencySample:
+          description: Requests behind latencyP50Ms.
+          type: integer
+        requests:
+          description: Requests routed to this source in the window.
+          type: integer
+        servedRequests:
+          description: Requests this source served in the window.
+          type: integer
+        uptimePct:
+          description: Share of requests this source served successfully, as a percentage.
+          type: number
+        uptimeSample:
+          description: Requests behind uptimePct.
+          type: integer
+        window:
+          const: 30d
+          description: The trailing window these measurements cover.
+          type: string
+      required:
+      - window
+      - uptimePct
+      - latencyP50Ms
+      - uptimeSample
+      - latencySample
+      - requests
+      - servedRequests
+      type: object
+    CatalogSearchResult:
+      properties:
+        category:
+          description: The API's category, accepted back as the `category` scope.
+          type: string
+        description:
+          description: One-line summary of what this API returns.
+          type: string
+        excludesCallerDelay:
+          description: Present when this API accepts a caller-requested wait that the published latency excludes.
+          type: boolean
+        execution:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryExecution'
+          description: The runtime protocol a run of this API follows.
+        failover:
+          description: True when more than one source can serve this API.
+          type: boolean
+        highlightFields:
+          description: Output fields of this API that matched the query, with each field's own schema description as `why`. Computed for the top few results only, so an absent array means no highlights were produced rather than no matching field.
+          items:
+            $ref: '#/components/schemas/DiscoveryHighlightField'
+          type: array
+        method:
+          description: HTTP method for this API's concrete operation.
+          type: string
+        name:
+          description: Display name.
+          type: string
+        path:
+          description: Concrete gateway path for this API.
+          type: string
+        platformId:
+          description: The API's platform, accepted back as the `platform` scope.
+          type: string
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryPricing'
+          description: Static USD pricing for this API.
+        provider:
+          const: AnyAPI
+          description: Always "AnyAPI".
+          type: string
+        relevance:
+          description: How well this API matched, relative to the others in this response.
+          type: number
+        slug:
+          description: The API's slug. Feed it to GET /v1/apis/{sku} for the input schema.
+          type: string
+        tryMaxItems:
+          description: The most items the free try returns, when this API is try-eligible.
+          type: integer
+      required:
+      - slug
+      - category
+      - name
+      - description
+      - method
+      - path
+      - provider
+      - execution
+      - pricing
+      - failover
+      - platformId
+      - relevance
+      type: object
+    DiscoverySource:
+      properties:
+        artworkKey:
+          description: Key for this source's artwork.
+          type: string
+        id:
+          description: Stable identifier for this source.
+          type: string
+        kind:
+          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+          enum:
+          - anonymous
+          - brand
+          type: string
+        name:
+          description: Display name for this source.
+          type: string
+      required:
+      - id
+      - name
+      - kind
+      - artworkKey
+      type: object
+    CatalogSourceOffer:
+      properties:
+        health:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySourceHealth'
+          description: Measured health for this source. Absent when it has too little traffic to publish.
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: This source's own customer price.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySource'
+          description: This source's public identity.
+      required:
+      - pricing
+      - source
+      type: object
+    DiscoveryHighlightField:
+      properties:
+        path:
+          description: JSON path of the output field inside this API's outputSchema.
+          type: string
+        type:
+          description: JSON type of that field.
+          type: string
+        why:
+          description: The field's own schema description. Absent when the schema gives none.
+          type: string
+      required:
+      - path
+      - type
+      type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    CatalogAPI:
+      properties:
+        beta:
+          description: 'Present when this API is published as beta. A maturity label only: a beta API routes, serves and bills exactly like any other.'
+          type: boolean
+        category:
+          description: The API's category, accepted back as the `category` scope.
+          type: string
+        description:
+          description: One-line summary of what this API returns.
+          type: string
+        excludesCallerDelay:
+          description: Present when this API accepts a caller-requested wait. The published latency is net of that wait, so a caller who uses it measures a longer time.
+          type: boolean
+        execution:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryExecution'
+          description: The runtime protocol a run of this API follows.
+        failover:
+          description: True when more than one source can serve this API, so a failed attempt is retried on another. Derived from the published sources, never authored.
+          type: boolean
+        heavy:
+          description: True when a typical response is large enough to strain an agent's context window. Reach for the run response-budget controls (fields, max_items, summary, jq) before the first call.
+          type: boolean
+        id:
+          description: Stable identifier for this API.
+          type: string
+        lanes:
+          description: The sources that can serve this API, cheapest customer charge first. Each carries its own price and its own public identity.
+          items:
+            $ref: '#/components/schemas/CatalogSourceOffer'
+          type: array
+        method:
+          description: 'HTTP method for this API''s concrete operation. Gateway authority: use it rather than assuming one.'
+          type: string
+        name:
+          description: Display name.
+          type: string
+        path:
+          description: 'Concrete gateway path for this API. Gateway authority: use it rather than rebuilding a route from the slug.'
+          type: string
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryPricing'
+          description: Static USD pricing for this API.
+        provider:
+          const: AnyAPI
+          description: Always "AnyAPI". AnyAPI is the provider of record for every API in the catalog.
+          type: string
+        slug:
+          description: The API's slug. Use it as {sku} on GET /v1/apis/{sku} and POST /v1/run/{sku}.
+          type: string
+        tryEligible:
+          description: True when this API can be run from the free public try surface.
+          type: boolean
+        tryMaxItems:
+          description: The most items the free try returns. Present only when tryEligible is true, so a limit is never advertised for an API the public tool will refuse.
+          type: integer
+      required:
+      - id
+      - slug
+      - category
+      - name
+      - description
+      - method
+      - path
+      - provider
+      - execution
+      - pricing
+      - lanes
+      - tryEligible
+      - failover
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY
