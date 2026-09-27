@@ -86,7 +86,7 @@
     "anyapi-zillow-api-openapi.yml"
   ],
   "archived": [
-    "deleted 5 superseded output(s) from the previous generation"
+    "deleted 4 superseded output(s) from the previous generation"
   ],
   "errors": [],
   "warnings": [],
@@ -106,8 +106,8 @@
     "anyapi-gateway-openapi.json: declared missing tag: Catalog",
     "anyapi-gateway-openapi.json: declared missing tag: Requests",
     "anyapi-gateway-openapi.json: declared missing tag: Results",
-    "superseded outputs removed: anyapi-ap-is-api-openapi.yml, anyapi-app-store-api-openapi.yml, anyapi-chat-gpt-api-openapi.yml, anyapi-hacker-news-api-openapi.yml, anyapi-linked-in-api-openapi.yml",
-    "apis.yml register: written (+5 apis, 80 total)"
+    "superseded outputs removed: anyapi-app-store-api-openapi.yml, anyapi-chat-gpt-api-openapi.yml, anyapi-hacker-news-api-openapi.yml, anyapi-linked-in-api-openapi.yml",
+    "apis.yml register: written (+4 apis, 80 total)"
   ],
   "skipped": [
     "_original/anyapi-openapi-original.json: archived document superseded by a larger archived document",
@@ -115,7 +115,7 @@
     "anyapi-airbnb-api-openapi.yml: previously refined output, superseded by openapi/_original/",
     "anyapi-alibaba-api-openapi.yml: previously refined output, superseded by openapi/_original/",
     "anyapi-amazon-api-openapi.yml: previously refined output, superseded by openapi/_original/",
-    "anyapi-ap-is-api-openapi.yml: previously refined output, superseded by openapi/_original/",
+    "anyapi-apis-api-openapi.yml: previously refined output, superseded by openapi/_original/",
     "anyapi-apollo-api-openapi.yml: previously refined output, superseded by openapi/_original/",
     "anyapi-app-store-api-openapi.yml: previously refined output, superseded by openapi/_original/",
     "anyapi-balance-api-openapi.yml: previously refined output, superseded by openapi/_original/",

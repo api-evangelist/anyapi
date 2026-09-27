@@ -110,114 +110,23 @@ paths:
       - Catalog
 components:
   schemas:
-    DiscoveryOffer:
+    CatalogSourceOffer:
       properties:
-        baseUsd:
-          description: 'Linear offers only: USD charged for the call before per-unit billing.'
-          type: number
-        maxPer1kUsd:
-          description: The same maximum in the per-1,000-request denomination AnyAPI quotes customers in. It is published rather than left to the client, so display this figure instead of scaling a price yourself.
-          type: number
-        maxUsd:
-          description: The most one request on this offer can be billed, in USD.
-          type: number
-        model:
-          description: Pricing model. A flat offer is one price per request; a linear offer also carries baseUsd and perUnitUsd.
-          enum:
-          - flat
-          - linear
-          type: string
-        perUnitUsd:
-          description: 'Linear offers only: USD charged for each billable unit inside the call.'
-          type: number
-        unit:
-          description: The billable unit. A flat offer always publishes "request".
-          type: string
-      required:
-      - model
-      - unit
-      - maxUsd
-      - maxPer1kUsd
-      type: object
-    DiscoveryExecution:
-      properties:
-        mode:
-          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
-          enum:
-          - sync
-          - durable
-          type: string
-      required:
-      - mode
-      type: object
-    DiscoveryPricing:
-      properties:
-        failoverMaxPer1kUsd:
-          description: failoverMaxUsd in the per-1,000-request denomination.
-          type: number
-        failoverMaxUsd:
-          description: The greatest customer-price maximum across those same sources, in USD.
-          type: number
-        from:
+        health:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySourceHealth'
+          description: Measured health for this source. Absent when it has too little traffic to publish.
+        pricing:
           allOf:
           - $ref: '#/components/schemas/DiscoveryOffer'
-          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
+          description: This source's own customer price.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySource'
+          description: This source's public identity.
       required:
-      - from
-      - failoverMaxUsd
-      - failoverMaxPer1kUsd
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
-    DiscoverySourceHealth:
-      properties:
-        latencyP50Ms:
-          description: Median successful service time for this source, in milliseconds.
-          type: integer
-        latencySample:
-          description: Requests behind latencyP50Ms.
-          type: integer
-        requests:
-          description: Requests routed to this source in the window.
-          type: integer
-        servedRequests:
-          description: Requests this source served in the window.
-          type: integer
-        uptimePct:
-          description: Share of requests this source served successfully, as a percentage.
-          type: number
-        uptimeSample:
-          description: Requests behind uptimePct.
-          type: integer
-        window:
-          const: 30d
-          description: The trailing window these measurements cover.
-          type: string
-      required:
-      - window
-      - uptimePct
-      - latencyP50Ms
-      - uptimeSample
-      - latencySample
-      - requests
-      - servedRequests
+      - pricing
+      - source
       type: object
     CatalogSearchResult:
       properties:
@@ -308,38 +217,38 @@ components:
       - kind
       - artworkKey
       type: object
-    CatalogSourceOffer:
+    DiscoverySourceHealth:
       properties:
-        health:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySourceHealth'
-          description: Measured health for this source. Absent when it has too little traffic to publish.
-        pricing:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: This source's own customer price.
-        source:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySource'
-          description: This source's public identity.
-      required:
-      - pricing
-      - source
-      type: object
-    DiscoveryHighlightField:
-      properties:
-        path:
-          description: JSON path of the output field inside this API's outputSchema.
-          type: string
-        type:
-          description: JSON type of that field.
-          type: string
-        why:
-          description: The field's own schema description. Absent when the schema gives none.
+        latencyP50Ms:
+          description: Median successful service time for this source, in milliseconds.
+          type: integer
+        latencySample:
+          description: Requests behind latencyP50Ms.
+          type: integer
+        requests:
+          description: Requests routed to this source in the window.
+          type: integer
+        servedRequests:
+          description: Requests this source served in the window.
+          type: integer
+        uptimePct:
+          description: Share of requests this source served successfully, as a percentage.
+          type: number
+        uptimeSample:
+          description: Requests behind uptimePct.
+          type: integer
+        window:
+          const: 30d
+          description: The trailing window these measurements cover.
           type: string
       required:
-      - path
-      - type
+      - window
+      - uptimePct
+      - latencyP50Ms
+      - uptimeSample
+      - latencySample
+      - requests
+      - servedRequests
       type: object
     Error:
       properties:
@@ -357,6 +266,51 @@ components:
           type: string
       required:
       - error
+      type: object
+    DiscoveryExecution:
+      properties:
+        mode:
+          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
+          enum:
+          - sync
+          - durable
+          type: string
+      required:
+      - mode
+      type: object
+    DiscoveryHighlightField:
+      properties:
+        path:
+          description: JSON path of the output field inside this API's outputSchema.
+          type: string
+        type:
+          description: JSON type of that field.
+          type: string
+        why:
+          description: The field's own schema description. Absent when the schema gives none.
+          type: string
+      required:
+      - path
+      - type
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
       type: object
     CatalogAPI:
       properties:
@@ -430,6 +384,52 @@ components:
       - lanes
       - tryEligible
       - failover
+      type: object
+    DiscoveryOffer:
+      properties:
+        baseUsd:
+          description: 'Linear offers only: USD charged for the call before per-unit billing.'
+          type: number
+        maxPer1kUsd:
+          description: The same maximum in the per-1,000-request denomination AnyAPI quotes customers in. It is published rather than left to the client, so display this figure instead of scaling a price yourself.
+          type: number
+        maxUsd:
+          description: The most one request on this offer can be billed, in USD.
+          type: number
+        model:
+          description: Pricing model. A flat offer is one price per request; a linear offer also carries baseUsd and perUnitUsd.
+          enum:
+          - flat
+          - linear
+          type: string
+        perUnitUsd:
+          description: 'Linear offers only: USD charged for each billable unit inside the call.'
+          type: number
+        unit:
+          description: The billable unit. A flat offer always publishes "request".
+          type: string
+      required:
+      - model
+      - unit
+      - maxUsd
+      - maxPer1kUsd
+      type: object
+    DiscoveryPricing:
+      properties:
+        failoverMaxPer1kUsd:
+          description: failoverMaxUsd in the per-1,000-request denomination.
+          type: number
+        failoverMaxUsd:
+          description: The greatest customer-price maximum across those same sources, in USD.
+          type: number
+        from:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
+      required:
+      - from
+      - failoverMaxUsd
+      - failoverMaxPer1kUsd
       type: object
   securitySchemes:
     apiKeyAuth:

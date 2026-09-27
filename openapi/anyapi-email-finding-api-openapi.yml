@@ -2690,40 +2690,14 @@ paths:
             timing: before_execution
 components:
   schemas:
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
     Error:
       properties:
         code:
@@ -2741,61 +2715,20 @@ components:
       required:
       - error
       type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
-    DeviceUpgrade:
+    AgentUpgrade:
       properties:
-        deviceCode:
-          type: string
-        expiresIn:
-          minimum: 0
-          type: integer
-        grantType:
-          type: string
-        interval:
-          minimum: 1
-          type: integer
-        tokenEndpoint:
+        authorizationServer:
           format: uri
           type: string
-        userCode:
+        clientId:
           type: string
-        verificationUri:
-          format: uri
-          type: string
-        verificationUriComplete:
-          format: uri
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
           type: string
       required:
-      - verificationUriComplete
-      - verificationUri
-      - userCode
-      - deviceCode
-      - tokenEndpoint
-      - grantType
-      - interval
-      - expiresIn
-      type: object
-    TrialCapReached:
-      properties:
-        error:
-          const: trial_cap_reached
-          type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
-          type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
-      required:
-      - error
-      - message
-      - upgrade
+      - authorizationServer
+      - scope
       type: object
     RequestSnapshot:
       properties:
@@ -2886,6 +2819,73 @@ components:
       - sku
       - status
       - createdAt
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    DeviceUpgrade:
+      properties:
+        deviceCode:
+          type: string
+        expiresIn:
+          minimum: 0
+          type: integer
+        grantType:
+          type: string
+        interval:
+          minimum: 1
+          type: integer
+        tokenEndpoint:
+          format: uri
+          type: string
+        userCode:
+          type: string
+        verificationUri:
+          format: uri
+          type: string
+        verificationUriComplete:
+          format: uri
+          type: string
+      required:
+      - verificationUriComplete
+      - verificationUri
+      - userCode
+      - deviceCode
+      - tokenEndpoint
+      - grantType
+      - interval
+      - expiresIn
+      type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:
