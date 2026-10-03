@@ -411,30 +411,113 @@ paths:
         href: /api-reference/company/research
 components:
   schemas:
-    company_research_crawlPage:
-      description: One clipped first-party page read, retained so dependent parts do not re-buy it.
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    company_research_socialAccount:
+      description: One published company account. The audience fields come from a paid read of the account itself and are absent when the run did not buy one, so a missing follower count is not zero.
       properties:
-        description:
-          description: Page meta description.
+        displayName:
+          description: Account display name.
           type: string
-        links:
-          $ref: '#/components/schemas/company_research_pageLinks'
-        markdown:
-          description: Clipped page text in markdown.
-          type: string
-        title:
-          description: Page title.
+        followers:
+          description: Follower count at the time of the read.
+          type: integer
+        handle:
+          description: Account handle.
           type: string
         url:
-          description: Page URL as read.
+          description: Account URL.
+          format: uri
+          type: string
+        verified:
+          description: Whether the platform marks the account verified.
+          type: boolean
+      required:
+      - handle
+      - url
+      type: object
+    company_research_crawlCorpus:
+      description: The reusable homepage and interior-page reads the crawl-derived parts share.
+      properties:
+        homepage:
+          description: The company homepage, or null when the run could not read it.
+          oneOf:
+          - type: 'null'
+          - $ref: '#/components/schemas/company_research_crawlPage'
+        interiorPages:
+          description: Interior pages the run paid to read.
+          items:
+            $ref: '#/components/schemas/company_research_crawlPage'
+          type: array
+      required:
+      - homepage
+      - interiorPages
+      type: object
+    company_research_provenance:
+      description: verified means the run read a page cited by this claim. inferred means no page the run read grounds it.
+      enum:
+      - verified
+      - inferred
+      type: string
+    company_research_openRoleListClaim:
+      allOf:
+      - $ref: '#/components/schemas/company_research_claim'
+      properties:
+        value:
+          items:
+            $ref: '#/components/schemas/company_research_openRole'
+          type: array
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    company_research_evidenceKind:
+      description: 'Source class of the evidence row: the company homepage, an interior page of its site, a search result, a competitor''s own page, or a catalog provider record.'
+      enum:
+      - homepage
+      - site
+      - search
+      - competitor
+      - provider
+      type: string
+    company_research_socialHandle:
+      description: One account as a link scan sees it. It carries no audience, because a link on a page proves an account exists and says nothing about how big it is.
+      properties:
+        handle:
+          description: Account handle on that platform.
+          type: string
+        platform:
+          description: Platform the account belongs to.
+          type: string
+        url:
+          description: Account URL.
           format: uri
           type: string
       required:
+      - platform
+      - handle
       - url
-      - title
-      - description
-      - markdown
-      - links
       type: object
     RequestSnapshot:
       properties:
@@ -526,90 +609,199 @@ components:
       - status
       - createdAt
       type: object
-    company_research_provenance:
-      description: verified means the run read a page cited by this claim. inferred means no page the run read grounds it.
-      enum:
-      - verified
-      - inferred
-      type: string
-    company_research_keyPerson:
-      description: One leadership record, masked for customer output.
+    company_research_pageLinks:
+      description: One page's outbound links, classified before the markdown was clipped.
       properties:
-        firstName:
-          description: First name.
+        site:
+          $ref: '#/components/schemas/company_research_companyLinks'
+        socials:
+          description: Social accounts linked from this page.
+          items:
+            $ref: '#/components/schemas/company_research_socialHandle'
+          type: array
+      required:
+      - socials
+      - site
+      type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
           type: string
-        lastNameInitial:
-          description: Upper-case initial of the last name.
+        error:
+          description: Customer-safe error message.
           type: string
-        title:
-          description: Job title.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
       required:
-      - title
-      - firstName
-      - lastNameInitial
+      - error
       type: object
-    company_research_claimEvidence:
-      description: One public source that grounds a claim.
+    company_research_stringListClaim:
+      allOf:
+      - $ref: '#/components/schemas/company_research_claim'
+      description: A claim whose value is a list of strings.
       properties:
-        capturedAt:
-          description: RFC 3339 UTC time at which the part that produced this claim ran.
-          format: date-time
+        value:
+          items:
+            type: string
+          type: array
+    company_research_platformPresence:
+      description: Everything the company runs on one platform. There is exactly one primary because the field is not a list, and secondary holds any number.
+      properties:
+        platform:
+          description: Platform name.
           type: string
-        excerpt:
-          description: Bounded excerpt of the source text.
+        primary:
+          $ref: '#/components/schemas/company_research_socialAccount'
+        secondary:
+          description: Further accounts the company runs on the same platform, such as regional ones.
+          items:
+            $ref: '#/components/schemas/company_research_socialAccount'
+          type: array
+      required:
+      - platform
+      - primary
+      - secondary
+      type: object
+    company_research_competitorProfile:
+      description: One admitted competitor.
+      properties:
+        domain:
+          description: Competitor domain.
           type: string
-        kind:
-          $ref: '#/components/schemas/company_research_evidenceKind'
-        url:
-          description: Canonical URL of the source.
-          format: uri
+        evidence:
+          description: Pages that ground this competitor. Empty when the run admitted it without reading its own page.
+          items:
+            $ref: '#/components/schemas/company_research_claimEvidence'
+          type: array
+        name:
+          description: Competitor name, or its domain when no page title was read.
+          type: string
+        positioning:
+          description: Why the run classified it that way.
+          type: string
+        relationship:
+          description: How the run classified this company against the researched one.
+          enum:
+          - competitor
+          - adjacent
+          - not_competitor
+          - unknown
           type: string
       required:
-      - url
-      - excerpt
-      - capturedAt
+      - name
+      - domain
+      - relationship
+      - positioning
+      - evidence
       type: object
-    company_research_keyPersonListClaim:
+    company_research_companyLinks:
+      description: Customer-useful first-party pages found in the crawl. A field is an empty string when the crawl linked no such page.
+      properties:
+        blog:
+          description: Blog URL.
+          type: string
+        careers:
+          description: Careers or jobs page URL.
+          type: string
+        contact:
+          description: Contact page URL.
+          type: string
+        docs:
+          description: Documentation URL.
+          type: string
+        pricing:
+          description: Pricing or plans page URL.
+          type: string
+      required:
+      - careers
+      - pricing
+      - blog
+      - docs
+      - contact
+      type: object
+    company_research_platformPresenceListClaim:
       allOf:
       - $ref: '#/components/schemas/company_research_claim'
       properties:
         value:
           items:
-            $ref: '#/components/schemas/company_research_keyPerson'
+            $ref: '#/components/schemas/company_research_platformPresence'
           type: array
-    company_research_crawlCorpus:
-      description: The reusable homepage and interior-page reads the crawl-derived parts share.
+    TrialCapReached:
       properties:
-        homepage:
-          description: The company homepage, or null when the run could not read it.
-          oneOf:
-          - type: 'null'
-          - $ref: '#/components/schemas/company_research_crawlPage'
-        interiorPages:
-          description: Interior pages the run paid to read.
-          items:
-            $ref: '#/components/schemas/company_research_crawlPage'
-          type: array
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
       required:
-      - homepage
-      - interiorPages
+      - error
+      - message
+      - upgrade
       type: object
-    company_research_claim:
-      description: The value, provenance, and evidence envelope every research field is wrapped in.
+    company_research_companyBasics:
+      description: Plain crawl-derived identity values, taken from the pages themselves rather than synthesized.
       properties:
-        evidence:
-          description: Sources that ground the value. Empty when nothing the run read grounds it.
+        canonicalName:
+          description: Company name derived from the homepage title, or from the domain when no title was read.
+          type: string
+        domain:
+          description: Domain the run researched.
+          type: string
+        links:
+          $ref: '#/components/schemas/company_research_companyLinks'
+        socials:
+          description: Social account URLs linked from the crawled pages.
           items:
-            $ref: '#/components/schemas/company_research_claimEvidence'
+            format: uri
+            type: string
           type: array
-        provenance:
-          $ref: '#/components/schemas/company_research_provenance'
-        value: true
+        websiteTitle:
+          description: Homepage title exactly as served.
+          type: string
       required:
-      - value
-      - provenance
-      - evidence
+      - domain
+      - canonicalName
+      - websiteTitle
+      - socials
+      - links
+      type: object
+    company_research_communityListClaim:
+      allOf:
+      - $ref: '#/components/schemas/company_research_claim'
+      properties:
+        value:
+          items:
+            $ref: '#/components/schemas/company_research_community'
+          type: array
+    company_research_fundingClaim:
+      allOf:
+      - $ref: '#/components/schemas/company_research_claim'
+      properties:
+        value:
+          $ref: '#/components/schemas/company_research_fundingSummary'
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
       type: object
     company_research_newsArticle:
       description: One recent company story.
@@ -647,60 +839,6 @@ components:
       - matchConfidence
       - storyId
       type: object
-    company_research_newsArticleListClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      properties:
-        value:
-          items:
-            $ref: '#/components/schemas/company_research_newsArticle'
-          type: array
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
-      type: object
-    company_research_communityListClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      properties:
-        value:
-          items:
-            $ref: '#/components/schemas/company_research_community'
-          type: array
-    company_research_fundingClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      properties:
-        value:
-          $ref: '#/components/schemas/company_research_fundingSummary'
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -734,93 +872,6 @@ components:
       - interval
       - expiresIn
       type: object
-    company_research_stringListClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      description: A claim whose value is a list of strings.
-      properties:
-        value:
-          items:
-            type: string
-          type: array
-    company_research_community:
-      description: One public place where matching company discussion appeared.
-      properties:
-        name:
-          description: Community name.
-          type: string
-        platform:
-          description: Platform hosting the community.
-          type: string
-        whyRelevant:
-          description: The discussion that put this community in the result.
-          type: string
-      required:
-      - platform
-      - name
-      - whyRelevant
-      type: object
-    company_research_companyBasics:
-      description: Plain crawl-derived identity values, taken from the pages themselves rather than synthesized.
-      properties:
-        canonicalName:
-          description: Company name derived from the homepage title, or from the domain when no title was read.
-          type: string
-        domain:
-          description: Domain the run researched.
-          type: string
-        links:
-          $ref: '#/components/schemas/company_research_companyLinks'
-        socials:
-          description: Social account URLs linked from the crawled pages.
-          items:
-            format: uri
-            type: string
-          type: array
-        websiteTitle:
-          description: Homepage title exactly as served.
-          type: string
-      required:
-      - domain
-      - canonicalName
-      - websiteTitle
-      - socials
-      - links
-      type: object
-    company_research_socialHandle:
-      description: One account as a link scan sees it. It carries no audience, because a link on a page proves an account exists and says nothing about how big it is.
-      properties:
-        handle:
-          description: Account handle on that platform.
-          type: string
-        platform:
-          description: Platform the account belongs to.
-          type: string
-        url:
-          description: Account URL.
-          format: uri
-          type: string
-      required:
-      - platform
-      - handle
-      - url
-      type: object
-    company_research_platformPresenceListClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      properties:
-        value:
-          items:
-            $ref: '#/components/schemas/company_research_platformPresence'
-          type: array
-    company_research_openRoleListClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      properties:
-        value:
-          items:
-            $ref: '#/components/schemas/company_research_openRole'
-          type: array
     company_research_integerClaim:
       allOf:
       - $ref: '#/components/schemas/company_research_claim'
@@ -828,113 +879,6 @@ components:
       properties:
         value:
           type: integer
-    company_research_openRole:
-      description: One current company job posting.
-      properties:
-        location:
-          description: City, state, and country joined with commas.
-          type: string
-        postedUtc:
-          description: UTC epoch timestamp in seconds (Unix time) at which the role was posted. Multiply by 1000 for a JS Date in milliseconds.
-          type: number
-        title:
-          description: Role title.
-          type: string
-        url:
-          description: Posting URL.
-          format: uri
-          type: string
-      required:
-      - title
-      - location
-      - url
-      - postedUtc
-      type: object
-    company_research_socialAccount:
-      description: One published company account. The audience fields come from a paid read of the account itself and are absent when the run did not buy one, so a missing follower count is not zero.
-      properties:
-        displayName:
-          description: Account display name.
-          type: string
-        followers:
-          description: Follower count at the time of the read.
-          type: integer
-        handle:
-          description: Account handle.
-          type: string
-        url:
-          description: Account URL.
-          format: uri
-          type: string
-        verified:
-          description: Whether the platform marks the account verified.
-          type: boolean
-      required:
-      - handle
-      - url
-      type: object
-    company_research_stringClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      description: A claim whose value is text. An empty string means the run found no supported answer.
-      properties:
-        value:
-          type: string
-    company_research_competitorListClaim:
-      allOf:
-      - $ref: '#/components/schemas/company_research_claim'
-      properties:
-        value:
-          items:
-            $ref: '#/components/schemas/company_research_competitorProfile'
-          type: array
-    company_research_platformPresence:
-      description: Everything the company runs on one platform. There is exactly one primary because the field is not a list, and secondary holds any number.
-      properties:
-        platform:
-          description: Platform name.
-          type: string
-        primary:
-          $ref: '#/components/schemas/company_research_socialAccount'
-        secondary:
-          description: Further accounts the company runs on the same platform, such as regional ones.
-          items:
-            $ref: '#/components/schemas/company_research_socialAccount'
-          type: array
-      required:
-      - platform
-      - primary
-      - secondary
-      type: object
-    TrialCapReached:
-      properties:
-        error:
-          const: trial_cap_reached
-          type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
-          type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
-      required:
-      - error
-      - message
-      - upgrade
-      type: object
-    company_research_pageLinks:
-      description: One page's outbound links, classified before the markdown was clipped.
-      properties:
-        site:
-          $ref: '#/components/schemas/company_research_companyLinks'
-        socials:
-          description: Social accounts linked from this page.
-          items:
-            $ref: '#/components/schemas/company_research_socialHandle'
-          type: array
-      required:
-      - socials
-      - site
-      type: object
     company_research_icpListClaim:
       allOf:
       - $ref: '#/components/schemas/company_research_claim'
@@ -943,47 +887,6 @@ components:
           items:
             $ref: '#/components/schemas/company_research_icpProfile'
           type: array
-    company_research_evidenceKind:
-      description: 'Source class of the evidence row: the company homepage, an interior page of its site, a search result, a competitor''s own page, or a catalog provider record.'
-      enum:
-      - homepage
-      - site
-      - search
-      - competitor
-      - provider
-      type: string
-    company_research_competitorProfile:
-      description: One admitted competitor.
-      properties:
-        domain:
-          description: Competitor domain.
-          type: string
-        evidence:
-          description: Pages that ground this competitor. Empty when the run admitted it without reading its own page.
-          items:
-            $ref: '#/components/schemas/company_research_claimEvidence'
-          type: array
-        name:
-          description: Competitor name, or its domain when no page title was read.
-          type: string
-        positioning:
-          description: Why the run classified it that way.
-          type: string
-        relationship:
-          description: How the run classified this company against the researched one.
-          enum:
-          - competitor
-          - adjacent
-          - not_competitor
-          - unknown
-          type: string
-      required:
-      - name
-      - domain
-      - relationship
-      - positioning
-      - evidence
-      type: object
     company_research_fundingSummary:
       description: Normalized public funding record. An all-zero record means no provider disclosed funding.
       properties:
@@ -1004,50 +907,6 @@ components:
       - latestStage
       - latestFundingUtc
       - rounds
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
-    company_research_companyLinks:
-      description: Customer-useful first-party pages found in the crawl. A field is an empty string when the crawl linked no such page.
-      properties:
-        blog:
-          description: Blog URL.
-          type: string
-        careers:
-          description: Careers or jobs page URL.
-          type: string
-        contact:
-          description: Contact page URL.
-          type: string
-        docs:
-          description: Documentation URL.
-          type: string
-        pricing:
-          description: Pricing or plans page URL.
-          type: string
-      required:
-      - careers
-      - pricing
-      - blog
-      - docs
-      - contact
       type: object
     company_research_icpProfile:
       description: One buyer segment synthesized from the crawl.
@@ -1072,14 +931,155 @@ components:
       - pains
       - buyingTrigger
       type: object
-    PaymentRequiredError:
+    company_research_crawlPage:
+      description: One clipped first-party page read, retained so dependent parts do not re-buy it.
+      properties:
+        description:
+          description: Page meta description.
+          type: string
+        links:
+          $ref: '#/components/schemas/company_research_pageLinks'
+        markdown:
+          description: Clipped page text in markdown.
+          type: string
+        title:
+          description: Page title.
+          type: string
+        url:
+          description: Page URL as read.
+          format: uri
+          type: string
+      required:
+      - url
+      - title
+      - description
+      - markdown
+      - links
+      type: object
+    company_research_keyPersonListClaim:
       allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
+      - $ref: '#/components/schemas/company_research_claim'
+      properties:
+        value:
+          items:
+            $ref: '#/components/schemas/company_research_keyPerson'
+          type: array
+    company_research_competitorListClaim:
+      allOf:
+      - $ref: '#/components/schemas/company_research_claim'
+      properties:
+        value:
+          items:
+            $ref: '#/components/schemas/company_research_competitorProfile'
+          type: array
+    company_research_claimEvidence:
+      description: One public source that grounds a claim.
+      properties:
+        capturedAt:
+          description: RFC 3339 UTC time at which the part that produced this claim ran.
+          format: date-time
+          type: string
+        excerpt:
+          description: Bounded excerpt of the source text.
+          type: string
+        kind:
+          $ref: '#/components/schemas/company_research_evidenceKind'
+        url:
+          description: Canonical URL of the source.
+          format: uri
+          type: string
+      required:
+      - url
+      - excerpt
+      - capturedAt
+      type: object
+    company_research_community:
+      description: One public place where matching company discussion appeared.
+      properties:
+        name:
+          description: Community name.
+          type: string
+        platform:
+          description: Platform hosting the community.
+          type: string
+        whyRelevant:
+          description: The discussion that put this community in the result.
+          type: string
+      required:
+      - platform
+      - name
+      - whyRelevant
+      type: object
+    company_research_claim:
+      description: The value, provenance, and evidence envelope every research field is wrapped in.
+      properties:
+        evidence:
+          description: Sources that ground the value. Empty when nothing the run read grounds it.
+          items:
+            $ref: '#/components/schemas/company_research_claimEvidence'
+          type: array
+        provenance:
+          $ref: '#/components/schemas/company_research_provenance'
+        value: true
+      required:
+      - value
+      - provenance
+      - evidence
+      type: object
+    company_research_keyPerson:
+      description: One leadership record, masked for customer output.
+      properties:
+        firstName:
+          description: First name.
+          type: string
+        lastNameInitial:
+          description: Upper-case initial of the last name.
+          type: string
+        title:
+          description: Job title.
+          type: string
+      required:
+      - title
+      - firstName
+      - lastNameInitial
+      type: object
+    company_research_openRole:
+      description: One current company job posting.
+      properties:
+        location:
+          description: City, state, and country joined with commas.
+          type: string
+        postedUtc:
+          description: UTC epoch timestamp in seconds (Unix time) at which the role was posted. Multiply by 1000 for a JS Date in milliseconds.
+          type: number
+        title:
+          description: Role title.
+          type: string
+        url:
+          description: Posting URL.
+          format: uri
+          type: string
+      required:
+      - title
+      - location
+      - url
+      - postedUtc
+      type: object
+    company_research_stringClaim:
+      allOf:
+      - $ref: '#/components/schemas/company_research_claim'
+      description: A claim whose value is text. An empty string means the run found no supported answer.
+      properties:
+        value:
+          type: string
+    company_research_newsArticleListClaim:
+      allOf:
+      - $ref: '#/components/schemas/company_research_claim'
+      properties:
+        value:
+          items:
+            $ref: '#/components/schemas/company_research_newsArticle'
+          type: array
   securitySchemes:
     apiKeyAuth:
       description: Your AnyAPI key.

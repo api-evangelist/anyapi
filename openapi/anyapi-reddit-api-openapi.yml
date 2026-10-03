@@ -4194,14 +4194,21 @@ paths:
             timing: before_execution
 components:
   schemas:
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
+      type: object
     Error:
       properties:
         code:
@@ -4219,6 +4226,14 @@ components:
       required:
       - error
       type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
     AgentUpgrade:
       properties:
         authorizationServer:
@@ -4285,21 +4300,6 @@ components:
       - grantType
       - interval
       - expiresIn
-      type: object
-    TrialCapReached:
-      properties:
-        error:
-          const: trial_cap_reached
-          type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
-          type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
-      required:
-      - error
-      - message
-      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

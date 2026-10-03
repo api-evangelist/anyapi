@@ -110,208 +110,6 @@ paths:
       - Catalog
 components:
   schemas:
-    CatalogSourceOffer:
-      properties:
-        health:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySourceHealth'
-          description: Measured health for this source. Absent when it has too little traffic to publish.
-        pricing:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: This source's own customer price.
-        source:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySource'
-          description: This source's public identity.
-      required:
-      - pricing
-      - source
-      type: object
-    CatalogSearchResult:
-      properties:
-        category:
-          description: The API's category, accepted back as the `category` scope.
-          type: string
-        description:
-          description: One-line summary of what this API returns.
-          type: string
-        excludesCallerDelay:
-          description: Present when this API accepts a caller-requested wait that the published latency excludes.
-          type: boolean
-        execution:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryExecution'
-          description: The runtime protocol a run of this API follows.
-        failover:
-          description: True when more than one source can serve this API.
-          type: boolean
-        highlightFields:
-          description: Output fields of this API that matched the query, with each field's own schema description as `why`. Computed for the top few results only, so an absent array means no highlights were produced rather than no matching field.
-          items:
-            $ref: '#/components/schemas/DiscoveryHighlightField'
-          type: array
-        method:
-          description: HTTP method for this API's concrete operation.
-          type: string
-        name:
-          description: Display name.
-          type: string
-        path:
-          description: Concrete gateway path for this API.
-          type: string
-        platformId:
-          description: The API's platform, accepted back as the `platform` scope.
-          type: string
-        pricing:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryPricing'
-          description: Static USD pricing for this API.
-        provider:
-          const: AnyAPI
-          description: Always "AnyAPI".
-          type: string
-        relevance:
-          description: How well this API matched, relative to the others in this response.
-          type: number
-        slug:
-          description: The API's slug. Feed it to GET /v1/apis/{sku} for the input schema.
-          type: string
-        tryMaxItems:
-          description: The most items the free try returns, when this API is try-eligible.
-          type: integer
-      required:
-      - slug
-      - category
-      - name
-      - description
-      - method
-      - path
-      - provider
-      - execution
-      - pricing
-      - failover
-      - platformId
-      - relevance
-      type: object
-    DiscoverySource:
-      properties:
-        artworkKey:
-          description: Key for this source's artwork.
-          type: string
-        id:
-          description: Stable identifier for this source.
-          type: string
-        kind:
-          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
-          enum:
-          - anonymous
-          - brand
-          type: string
-        name:
-          description: Display name for this source.
-          type: string
-      required:
-      - id
-      - name
-      - kind
-      - artworkKey
-      type: object
-    DiscoverySourceHealth:
-      properties:
-        latencyP50Ms:
-          description: Median successful service time for this source, in milliseconds.
-          type: integer
-        latencySample:
-          description: Requests behind latencyP50Ms.
-          type: integer
-        requests:
-          description: Requests routed to this source in the window.
-          type: integer
-        servedRequests:
-          description: Requests this source served in the window.
-          type: integer
-        uptimePct:
-          description: Share of requests this source served successfully, as a percentage.
-          type: number
-        uptimeSample:
-          description: Requests behind uptimePct.
-          type: integer
-        window:
-          const: 30d
-          description: The trailing window these measurements cover.
-          type: string
-      required:
-      - window
-      - uptimePct
-      - latencyP50Ms
-      - uptimeSample
-      - latencySample
-      - requests
-      - servedRequests
-      type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    DiscoveryExecution:
-      properties:
-        mode:
-          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
-          enum:
-          - sync
-          - durable
-          type: string
-      required:
-      - mode
-      type: object
-    DiscoveryHighlightField:
-      properties:
-        path:
-          description: JSON path of the output field inside this API's outputSchema.
-          type: string
-        type:
-          description: JSON type of that field.
-          type: string
-        why:
-          description: The field's own schema description. Absent when the schema gives none.
-          type: string
-      required:
-      - path
-      - type
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
     CatalogAPI:
       properties:
         beta:
@@ -385,6 +183,23 @@ components:
       - tryEligible
       - failover
       type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
     DiscoveryOffer:
       properties:
         baseUsd:
@@ -414,6 +229,54 @@ components:
       - maxUsd
       - maxPer1kUsd
       type: object
+    DiscoverySourceHealth:
+      properties:
+        latencyP50Ms:
+          description: Median successful service time for this source, in milliseconds.
+          type: integer
+        latencySample:
+          description: Requests behind latencyP50Ms.
+          type: integer
+        requests:
+          description: Requests routed to this source in the window.
+          type: integer
+        servedRequests:
+          description: Requests this source served in the window.
+          type: integer
+        uptimePct:
+          description: Share of requests this source served successfully, as a percentage.
+          type: number
+        uptimeSample:
+          description: Requests behind uptimePct.
+          type: integer
+        window:
+          const: 30d
+          description: The trailing window these measurements cover.
+          type: string
+      required:
+      - window
+      - uptimePct
+      - latencyP50Ms
+      - uptimeSample
+      - latencySample
+      - requests
+      - servedRequests
+      type: object
+    DiscoveryHighlightField:
+      properties:
+        path:
+          description: JSON path of the output field inside this API's outputSchema.
+          type: string
+        type:
+          description: JSON type of that field.
+          type: string
+        why:
+          description: The field's own schema description. Absent when the schema gives none.
+          type: string
+      required:
+      - path
+      - type
+      type: object
     DiscoveryPricing:
       properties:
         failoverMaxPer1kUsd:
@@ -430,6 +293,143 @@ components:
       - from
       - failoverMaxUsd
       - failoverMaxPer1kUsd
+      type: object
+    DiscoveryExecution:
+      properties:
+        mode:
+          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
+          enum:
+          - sync
+          - durable
+          type: string
+      required:
+      - mode
+      type: object
+    DiscoverySource:
+      properties:
+        artworkKey:
+          description: Key for this source's artwork.
+          type: string
+        id:
+          description: Stable identifier for this source.
+          type: string
+        kind:
+          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+          enum:
+          - anonymous
+          - brand
+          type: string
+        name:
+          description: Display name for this source.
+          type: string
+      required:
+      - id
+      - name
+      - kind
+      - artworkKey
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    CatalogSearchResult:
+      properties:
+        category:
+          description: The API's category, accepted back as the `category` scope.
+          type: string
+        description:
+          description: One-line summary of what this API returns.
+          type: string
+        excludesCallerDelay:
+          description: Present when this API accepts a caller-requested wait that the published latency excludes.
+          type: boolean
+        execution:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryExecution'
+          description: The runtime protocol a run of this API follows.
+        failover:
+          description: True when more than one source can serve this API.
+          type: boolean
+        highlightFields:
+          description: Output fields of this API that matched the query, with each field's own schema description as `why`. Computed for the top few results only, so an absent array means no highlights were produced rather than no matching field.
+          items:
+            $ref: '#/components/schemas/DiscoveryHighlightField'
+          type: array
+        method:
+          description: HTTP method for this API's concrete operation.
+          type: string
+        name:
+          description: Display name.
+          type: string
+        path:
+          description: Concrete gateway path for this API.
+          type: string
+        platformId:
+          description: The API's platform, accepted back as the `platform` scope.
+          type: string
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryPricing'
+          description: Static USD pricing for this API.
+        provider:
+          const: AnyAPI
+          description: Always "AnyAPI".
+          type: string
+        relevance:
+          description: How well this API matched, relative to the others in this response.
+          type: number
+        slug:
+          description: The API's slug. Feed it to GET /v1/apis/{sku} for the input schema.
+          type: string
+        tryMaxItems:
+          description: The most items the free try returns, when this API is try-eligible.
+          type: integer
+      required:
+      - slug
+      - category
+      - name
+      - description
+      - method
+      - path
+      - provider
+      - execution
+      - pricing
+      - failover
+      - platformId
+      - relevance
+      type: object
+    CatalogSourceOffer:
+      properties:
+        health:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySourceHealth'
+          description: Measured health for this source. Absent when it has too little traffic to publish.
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: This source's own customer price.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySource'
+          description: This source's public identity.
+      required:
+      - pricing
+      - source
       type: object
   securitySchemes:
     apiKeyAuth:
