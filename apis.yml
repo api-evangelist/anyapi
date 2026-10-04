@@ -790,6 +790,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - Google Finance
+  tags_raw:
   - google-finance
   properties:
   - type: OpenAPI
@@ -1995,6 +1997,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - ChatGPT
+  tags_raw:
   - Chat GPT
   properties:
   - type: OpenAPI
@@ -2043,6 +2047,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - LinkedIn
+  tags_raw:
   - Linked In
   properties:
   - type: OpenAPI
@@ -2071,6 +2077,9 @@ x-generated:
   confidence: 98
   at: '2026-09-04T05:09:51.686Z'
 common:
+- type: CapabilityMap
+  url: capabilities/anyapi-capability-edges.yml
+  name: AnyAPI Business Capability Map
 - type: MCPServer
   url: mcp/anyapi-mcp.yml
 - type: MCPServer
