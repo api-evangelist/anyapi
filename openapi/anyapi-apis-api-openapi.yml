@@ -83,22 +83,77 @@ paths:
       - APIs
 components:
   schemas:
-    Error:
+    DiscoveryLatency:
       properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
+        basis:
+          const: service_time_excludes_caller_requested_delay
+          description: Machine-readable definition of what these percentiles measure.
           type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
+        p50Ms:
+          description: Median successful end-to-end service time, in milliseconds.
+          type: integer
+        p95Ms:
+          description: 95th percentile successful end-to-end service time, in milliseconds.
+          type: integer
+        p99Ms:
+          description: 99th percentile successful end-to-end service time, in milliseconds. An observation, not a maximum.
+          type: integer
+        sample:
+          description: Successful executions behind these percentiles.
+          type: integer
+        window:
+          const: 30d
+          description: The trailing window these percentiles cover.
           type: string
       required:
-      - error
+      - window
+      - p50Ms
+      - p95Ms
+      - p99Ms
+      - sample
+      - basis
+      type: object
+    DiscoverySource:
+      properties:
+        artworkKey:
+          description: Key for this source's artwork.
+          type: string
+        id:
+          description: Stable identifier for this source.
+          type: string
+        kind:
+          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+          enum:
+          - anonymous
+          - brand
+          type: string
+        name:
+          description: Display name for this source.
+          type: string
+      required:
+      - id
+      - name
+      - kind
+      - artworkKey
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
       type: object
     DiscoveryOffer:
       properties:
@@ -128,6 +183,23 @@ components:
       - unit
       - maxUsd
       - maxPer1kUsd
+      type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
       type: object
     APIDetail:
       properties:
@@ -217,36 +289,6 @@ components:
       - failover
       - latency
       type: object
-    DiscoveryLatency:
-      properties:
-        basis:
-          const: service_time_excludes_caller_requested_delay
-          description: Machine-readable definition of what these percentiles measure.
-          type: string
-        p50Ms:
-          description: Median successful end-to-end service time, in milliseconds.
-          type: integer
-        p95Ms:
-          description: 95th percentile successful end-to-end service time, in milliseconds.
-          type: integer
-        p99Ms:
-          description: 99th percentile successful end-to-end service time, in milliseconds. An observation, not a maximum.
-          type: integer
-        sample:
-          description: Successful executions behind these percentiles.
-          type: integer
-        window:
-          const: 30d
-          description: The trailing window these percentiles cover.
-          type: string
-      required:
-      - window
-      - p50Ms
-      - p95Ms
-      - p99Ms
-      - sample
-      - basis
-      type: object
     DiscoveryPricing:
       properties:
         failoverMaxPer1kUsd:
@@ -264,16 +306,19 @@ components:
       - failoverMaxUsd
       - failoverMaxPer1kUsd
       type: object
-    DiscoveryExecution:
+    APISourceOffer:
       properties:
-        mode:
-          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
-          enum:
-          - sync
-          - durable
-          type: string
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: This source's own customer price.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySource'
+          description: This source's public identity.
       required:
-      - mode
+      - pricing
+      - source
       type: object
     APISummary:
       properties:
@@ -348,61 +393,16 @@ components:
       - tryEligible
       - failover
       type: object
-    Payment:
+    DiscoveryExecution:
       properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
+        mode:
+          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
           enum:
-          - charged_undelivered
-          - indeterminate
+          - sync
+          - durable
           type: string
       required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
-    APISourceOffer:
-      properties:
-        pricing:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: This source's own customer price.
-        source:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySource'
-          description: This source's public identity.
-      required:
-      - pricing
-      - source
-      type: object
-    DiscoverySource:
-      properties:
-        artworkKey:
-          description: Key for this source's artwork.
-          type: string
-        id:
-          description: Stable identifier for this source.
-          type: string
-        kind:
-          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
-          enum:
-          - anonymous
-          - brand
-          type: string
-        name:
-          description: Display name for this source.
-          type: string
-      required:
-      - id
-      - name
-      - kind
-      - artworkKey
+      - mode
       type: object
   securitySchemes:
     apiKeyAuth:

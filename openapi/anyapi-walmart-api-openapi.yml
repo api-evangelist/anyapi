@@ -410,31 +410,6 @@ components:
       - message
       - upgrade
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     AgentUpgrade:
       properties:
         authorizationServer:
@@ -469,6 +444,31 @@ components:
       - settlementState
       - costUsd
       type: object
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
     DeviceUpgrade:
       properties:
         deviceCode:

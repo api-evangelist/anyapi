@@ -1997,8 +1997,6 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
-  - ChatGPT
-  tags_raw:
   - Chat GPT
   properties:
   - type: OpenAPI
@@ -2047,8 +2045,6 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
-  - LinkedIn
-  tags_raw:
   - Linked In
   properties:
   - type: OpenAPI
