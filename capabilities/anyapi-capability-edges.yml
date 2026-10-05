@@ -1,0 +1,48 @@
+slug: anyapi
+provider: AnyAPI
+generated_by: planning/capability-mapping/scripts/classify_capabilities.py
+model: claude-opus-5
+frame:
+- Software & Technology
+min_confidence: 0.7
+capability_model:
+  source: https://github.com/vincentmakes/turbo-ea-capabilities
+  license: CC-BY-4.0
+  attribution: Turbo EA Capabilities by Vincent Verdet — Turbo EA, https://github.com/vincentmakes/turbo-ea-capabilities,
+    CC BY 4.0
+  notice: NOTICE
+edge_count: 3
+edges:
+- tag: SEO
+  spec_file: anyapi-seo-api-openapi.yml
+  capability_id: BC-400.60
+  capability_id_l1: BC-400
+  capability_name: Digital Marketing Management
+  confidence: 0.82
+  evidence: POST /v1/run/seo.keyword_difficulty  SEO Keyword Difficulty; POST /v1/run/seo.ranked_keywords  SEO
+    Ranked Keywords; POST /v1/run/seo.competitors_domain  SEO Competitor Domains
+  reason: The operations deliver keyword research, domain rank overviews, ranked keywords and competitor
+    domain analysis — the data substrate of search engine optimisation work, which sits under Digital
+    Marketing Management (web, SEO). Some overlap with market/competitive intelligence keeps this below
+    0.9.
+- tag: ahrefs
+  spec_file: anyapi-ahrefs-api-openapi.yml
+  capability_id: BC-400.60
+  capability_id_l1: BC-400
+  capability_name: Digital Marketing Management
+  confidence: 0.72
+  evidence: ahrefs_backlinks  Ahrefs Backlinks; ahrefs_keyword_ideas  Ahrefs Keyword Ideas; ahrefs_keywords  Ahrefs
+    Keyword Difficulty; ahrefs_overview  Ahrefs Domain Overview
+  reason: Backlinks, keyword ideas, keyword difficulty and domain overview are SEO metrics, matching Digital
+    Marketing Management (web, SEO, paid media). Some chance a grader would treat it as market intelligence
+    instead, hence not higher.
+- tag: semrush
+  spec_file: anyapi-semrush-api-openapi.yml
+  capability_id: BC-400.60
+  capability_id_l1: BC-400
+  capability_name: Digital Marketing Management
+  confidence: 0.7
+  evidence: semrush_keywords  Semrush Keyword Research; semrush_overview  Semrush Domain Overview
+  reason: Keyword research and domain SEO overview are core digital marketing/SEO activities, matching
+    Digital Marketing Management (web, SEO, paid media). Some overlap with competitive market intelligence
+    keeps confidence at 0.7.
