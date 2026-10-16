@@ -1,35 +1,33 @@
-# Kin Score artifact — anyapi — 2026-09-04T224856
+# Kin Score artifact — anyapi — 2026-10-11T110117
 # The API Evangelist rating (https://github.com/api-evangelist/kin-score). Generated; do not edit.
 ---
 kin_score:
   slug: anyapi
-  schema_version: 0.18.3
-  scored_at: '2026-09-04'
-  run_ts: 2026-09-04T224856
-  composite: 52.5
-  band: developing
+  schema_version: 0.23.0
+  scored_at: '2026-10-11'
+  run_ts: 2026-10-11T110117
+  composite: 55.3
+  band: strong
   facets:
-    discoverability: 87.0
-    contract_quality: 26.7
-    governance: 18.2
-    operational_transparency: 31.6
-    developer_ergonomics: 85.7
-    commercial_clarity: 44.7
+    discoverability: 85.0
+    contract_quality: 55.5
     contract_governance: 18.2
+    operational_transparency: 28.9
+    developer_ergonomics: 81.0
     access_clarity: 44.7
   agent_readiness:
-    score: 50.2
+    score: 70.8
     band: agent-native
     dimensions:
       spec_presence: true
       agentic_access: false
-      reversibility_documented: false
-      mcp_server: documented
+      reversibility_documented: documented
+      mcp_server: verified
       auth_clarity: served
-      idempotency: documented
-      error_semantics: documented
-      openapi_examples: false
-      rate_limit_signal: documented
+      idempotency: verified
+      error_semantics: verified
+      openapi_examples: verified
+      rate_limit_signal: verified
       event_surface_described: false
       agent_skills: true
       well_known_catalog: true
@@ -44,9 +42,14 @@ kin_score:
     applies: true
     regime: Payments
     regime_id: payments
-    score: 64.1
+    score: 36.6
     matched_via: tags
   provenance:
     mcp: first-party
     skills: first-party
     conformance: first-party
+    contracts:
+      total: 80
+      derived: 0
+      coverage: 0.0
+      callable: 100.0
