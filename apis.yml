@@ -19,11 +19,11 @@ tags:
   - Developer Tools
   - Data
   - Search
-  - Scraping
+  - Web Scraping
   - Social Media
   - E-Commerce
   - SEO
-  - Enrichment
+  - Data Enrichment
   - MCP
   - Agent-Native
   - Web Data
@@ -1997,6 +1997,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - ChatGPT
+  tags_raw:
   - Chat GPT
   properties:
   - type: OpenAPI
@@ -2045,6 +2047,8 @@ apis:
   humanURL: https://getanyapi.com/docs
   baseURL: https://api.getanyapi.com
   tags:
+  - LinkedIn
+  tags_raw:
   - Linked In
   properties:
   - type: OpenAPI
