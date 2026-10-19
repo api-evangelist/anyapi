@@ -83,107 +83,6 @@ paths:
       - APIs
 components:
   schemas:
-    DiscoveryLatency:
-      properties:
-        basis:
-          const: service_time_excludes_caller_requested_delay
-          description: Machine-readable definition of what these percentiles measure.
-          type: string
-        p50Ms:
-          description: Median successful end-to-end service time, in milliseconds.
-          type: integer
-        p95Ms:
-          description: 95th percentile successful end-to-end service time, in milliseconds.
-          type: integer
-        p99Ms:
-          description: 99th percentile successful end-to-end service time, in milliseconds. An observation, not a maximum.
-          type: integer
-        sample:
-          description: Successful executions behind these percentiles.
-          type: integer
-        window:
-          const: 30d
-          description: The trailing window these percentiles cover.
-          type: string
-      required:
-      - window
-      - p50Ms
-      - p95Ms
-      - p99Ms
-      - sample
-      - basis
-      type: object
-    DiscoverySource:
-      properties:
-        artworkKey:
-          description: Key for this source's artwork.
-          type: string
-        id:
-          description: Stable identifier for this source.
-          type: string
-        kind:
-          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
-          enum:
-          - anonymous
-          - brand
-          type: string
-        name:
-          description: Display name for this source.
-          type: string
-      required:
-      - id
-      - name
-      - kind
-      - artworkKey
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
-    DiscoveryOffer:
-      properties:
-        baseUsd:
-          description: 'Linear offers only: USD charged for the call before per-unit billing.'
-          type: number
-        maxPer1kUsd:
-          description: The same maximum in the per-1,000-request denomination AnyAPI quotes customers in. It is published rather than left to the client, so display this figure instead of scaling a price yourself.
-          type: number
-        maxUsd:
-          description: The most one request on this offer can be billed, in USD.
-          type: number
-        model:
-          description: Pricing model. A flat offer is one price per request; a linear offer also carries baseUsd and perUnitUsd.
-          enum:
-          - flat
-          - linear
-          type: string
-        perUnitUsd:
-          description: 'Linear offers only: USD charged for each billable unit inside the call.'
-          type: number
-        unit:
-          description: The billable unit. A flat offer always publishes "request".
-          type: string
-      required:
-      - model
-      - unit
-      - maxUsd
-      - maxPer1kUsd
-      type: object
     Error:
       properties:
         code:
@@ -201,113 +100,13 @@ components:
       required:
       - error
       type: object
-    APIDetail:
-      properties:
-        beta:
-          description: 'Present when this API is published as beta. A maturity label only: a beta API routes, serves and bills exactly like any other.'
-          type: boolean
-        category:
-          description: The API's category, accepted back as the `category` scope.
-          type: string
-        description:
-          description: One-line summary of what this API returns.
-          type: string
-        excludesCallerDelay:
-          description: Present when this API accepts a caller-requested wait. The published latency is net of that wait, so a caller who uses it measures a longer time.
-          type: boolean
-        execution:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryExecution'
-          description: The runtime protocol a run of this API follows.
-        failover:
-          description: True when more than one source can serve this API, so a failed attempt is retried on another. Derived from the published sources, never authored.
-          type: boolean
-        heavy:
-          description: True when a typical response is large enough to strain an agent's context window. Reach for the run response-budget controls (fields, max_items, summary, jq) before the first call.
-          type: boolean
-        howItWorks:
-          description: Authored prose explaining how this API produces its result. Absent when unauthored.
-          type: string
-        id:
-          description: Stable identifier for this API.
-          type: string
-        inputSchema:
-          description: 'This API''s normalized input as a JSON Schema document. It is strict: build the run body from it, because an invented field name fails the call.'
-          type: object
-        lanes:
-          description: The sources that can serve this API, cheapest customer charge first. Each carries its own price and its own public identity.
-          items:
-            $ref: '#/components/schemas/APISourceOffer'
-          type: array
-        latency:
-          anyOf:
-          - $ref: '#/components/schemas/DiscoveryLatency'
-          - type: 'null'
-          description: Trailing-window distribution of successful runs, or null when there are too few observations to publish.
-        method:
-          description: 'HTTP method for this API''s concrete operation. Gateway authority: use it rather than assuming one.'
-          type: string
-        name:
-          description: Display name.
-          type: string
-        outputSchema:
-          description: This API's normalized output as a JSON Schema document.
-          type: object
-        path:
-          description: 'Concrete gateway path for this API. Gateway authority: use it rather than rebuilding a route from the slug.'
-          type: string
-        pricing:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryPricing'
-          description: Static USD pricing for this API.
-        provider:
-          const: AnyAPI
-          description: Always "AnyAPI". AnyAPI is the provider of record for every API in the catalog.
-          type: string
-        slug:
-          description: The API's slug. Use it as {sku} on GET /v1/apis/{sku} and POST /v1/run/{sku}.
-          type: string
-        tryEligible:
-          description: True when this API can be run from the free public try surface.
-          type: boolean
-        tryMaxItems:
-          description: The most items the free try returns. Present only when tryEligible is true, so a limit is never advertised for an API the public tool will refuse.
-          type: integer
-      required:
-      - id
-      - slug
-      - category
-      - name
-      - description
-      - method
-      - path
-      - provider
-      - execution
-      - pricing
-      - lanes
-      - tryEligible
-      - failover
-      - latency
-      type: object
-    DiscoveryPricing:
-      properties:
-        failoverMaxPer1kUsd:
-          description: failoverMaxUsd in the per-1,000-request denomination.
-          type: number
-        failoverMaxUsd:
-          description: The greatest customer-price maximum across those same sources, in USD.
-          type: number
-        from:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
-      required:
-      - from
-      - failoverMaxUsd
-      - failoverMaxPer1kUsd
-      type: object
     APISourceOffer:
       properties:
+        fields:
+          description: The output fields this source returns, so you can see before calling which requireFields combinations one source can serve together. Absent when the set is not known for the source.
+          items:
+            type: string
+          type: array
         pricing:
           allOf:
           - $ref: '#/components/schemas/DiscoveryOffer'
@@ -358,6 +157,11 @@ components:
         name:
           description: Display name.
           type: string
+        notServingSources:
+          description: 'Sources that belong to this API but are not being called right now: each served until it was withdrawn after failures, and each returns on its own once it passes again. Absent when every source is serving. Never merge these into the list above: the prices here cannot be charged and a failed call is not retried on them.'
+          items:
+            $ref: '#/components/schemas/APISourceOffer'
+          type: array
         path:
           description: 'Concrete gateway path for this API. Gateway authority: use it rather than rebuilding a route from the slug.'
           type: string
@@ -392,6 +196,240 @@ components:
       - lanes
       - tryEligible
       - failover
+      type: object
+    APIDetail:
+      properties:
+        beta:
+          description: 'Present when this API is published as beta. A maturity label only: a beta API routes, serves and bills exactly like any other.'
+          type: boolean
+        category:
+          description: The API's category, accepted back as the `category` scope.
+          type: string
+        description:
+          description: One-line summary of what this API returns.
+          type: string
+        excludesCallerDelay:
+          description: Present when this API accepts a caller-requested wait. The published latency is net of that wait, so a caller who uses it measures a longer time.
+          type: boolean
+        execution:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryExecution'
+          description: The runtime protocol a run of this API follows.
+        failover:
+          description: True when more than one source can serve this API, so a failed attempt is retried on another. Derived from the published sources, never authored.
+          type: boolean
+        heavy:
+          description: True when a typical response is large enough to strain an agent's context window. Reach for the run response-budget controls (fields, max_items, summary, jq) before the first call.
+          type: boolean
+        howItWorks:
+          description: Authored prose explaining how this API produces its result. Absent when unauthored.
+          type: string
+        id:
+          description: Stable identifier for this API.
+          type: string
+        inputSchema:
+          description: 'This API''s normalized input as a JSON Schema document. It is strict: build the run body from it, because an invented field name fails the call.'
+          type: object
+        lanes:
+          description: The sources that can serve this API, cheapest customer charge first. Each carries its own price and its own public identity.
+          items:
+            $ref: '#/components/schemas/APISourceOffer'
+          type: array
+        latency:
+          anyOf:
+          - $ref: '#/components/schemas/DiscoveryLatency'
+          - type: 'null'
+          description: Trailing-window distribution of successful runs, or null when there are too few observations to publish.
+        method:
+          description: 'HTTP method for this API''s concrete operation. Gateway authority: use it rather than assuming one.'
+          type: string
+        name:
+          description: Display name.
+          type: string
+        notServingSources:
+          description: 'Sources that belong to this API but are not being called right now: each served until it was withdrawn after failures, and each returns on its own once it passes again. Absent when every source is serving. Never merge these into the list above: the prices here cannot be charged and a failed call is not retried on them.'
+          items:
+            $ref: '#/components/schemas/APISourceOffer'
+          type: array
+        outputSchema:
+          description: This API's normalized output as a JSON Schema document.
+          type: object
+        path:
+          description: 'Concrete gateway path for this API. Gateway authority: use it rather than rebuilding a route from the slug.'
+          type: string
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryPricing'
+          description: Static USD pricing for this API.
+        provider:
+          const: AnyAPI
+          description: Always "AnyAPI". AnyAPI is the provider of record for every API in the catalog.
+          type: string
+        slug:
+          description: The API's slug. Use it as {sku} on GET /v1/apis/{sku} and POST /v1/run/{sku}.
+          type: string
+        tryEligible:
+          description: True when this API can be run from the free public try surface.
+          type: boolean
+        tryMaxItems:
+          description: The most items the free try returns. Present only when tryEligible is true, so a limit is never advertised for an API the public tool will refuse.
+          type: integer
+      required:
+      - id
+      - slug
+      - category
+      - name
+      - description
+      - method
+      - path
+      - provider
+      - execution
+      - pricing
+      - lanes
+      - tryEligible
+      - failover
+      - latency
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    DiscoverySource:
+      properties:
+        artworkKey:
+          description: Key for this source's artwork.
+          type: string
+        id:
+          description: Stable identifier for this source.
+          type: string
+        kind:
+          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+          enum:
+          - anonymous
+          - brand
+          type: string
+        name:
+          description: Display name for this source.
+          type: string
+      required:
+      - id
+      - name
+      - kind
+      - artworkKey
+      type: object
+    DiscoveryPricing:
+      properties:
+        failoverMaxPer1kUsd:
+          description: failoverMaxUsd in the per-1,000-request denomination.
+          type: number
+        failoverMaxUsd:
+          description: The greatest customer-price maximum across those same sources, in USD, including every optional extra a source sells.
+          type: number
+        from:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
+      required:
+      - from
+      - failoverMaxUsd
+      - failoverMaxPer1kUsd
+      type: object
+    DiscoveryOffer:
+      properties:
+        addons:
+          description: 'Optional extras this offer sells, absent when it sells none. Each is switched on by a field in the request, so its price is known before the call and never moves. maxUsd bounds the metered charge alone: an extra the caller asked for is billed ON TOP of it, so the most one request can cost is maxUsd plus the extras it switched on.'
+          items:
+            properties:
+              field:
+                description: The input field that switches it on.
+                type: string
+              id:
+                description: Stable identifier for the extra.
+                type: string
+              label:
+                description: What the money buys, in the customer's words.
+                type: string
+              usd:
+                description: USD added to the request when that field is set.
+                type: number
+            required:
+            - id
+            - label
+            - field
+            - usd
+            type: object
+          type: array
+        baseUsd:
+          description: 'Linear offers only: USD charged for the call before per-unit billing.'
+          type: number
+        maxPer1kUsd:
+          description: The same maximum in the per-1,000-request denomination AnyAPI quotes customers in. It is published rather than left to the client, so display this figure instead of scaling a price yourself.
+          type: number
+        maxUsd:
+          description: The most one request on this offer can be billed, in USD.
+          type: number
+        model:
+          description: Pricing model. A flat offer is one price per request; a linear offer also carries baseUsd and perUnitUsd.
+          enum:
+          - flat
+          - linear
+          type: string
+        perUnitUsd:
+          description: 'Linear offers only: USD charged for each billable unit inside the call.'
+          type: number
+        unit:
+          description: The billable unit. A flat offer always publishes "request".
+          type: string
+      required:
+      - model
+      - unit
+      - maxUsd
+      - maxPer1kUsd
+      type: object
+    DiscoveryLatency:
+      properties:
+        basis:
+          const: service_time_excludes_caller_requested_delay
+          description: Machine-readable definition of what these percentiles measure.
+          type: string
+        p50Ms:
+          description: Median successful end-to-end service time, in milliseconds.
+          type: integer
+        p95Ms:
+          description: 95th percentile successful end-to-end service time, in milliseconds.
+          type: integer
+        p99Ms:
+          description: 99th percentile successful end-to-end service time, in milliseconds. An observation, not a maximum.
+          type: integer
+        sample:
+          description: Successful executions behind these percentiles.
+          type: integer
+        window:
+          const: 30d
+          description: The trailing window these percentiles cover.
+          type: string
+      required:
+      - window
+      - p50Ms
+      - p95Ms
+      - p99Ms
+      - sample
+      - basis
       type: object
     DiscoveryExecution:
       properties:

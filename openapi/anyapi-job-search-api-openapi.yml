@@ -29,13 +29,13 @@ paths:
         **Catalog:** Job Search - TheirStack pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Job_search endpoint.'
       operationId: job_search_theirstack
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -85,6 +85,10 @@ paths:
                 postedAtMaxAgeDays: 30
               minProperties: 1
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 companyCountryCodeNot:
                   description: Return companies whose HQ country code is not any of the ones passed here, case sensitive. Pass ISO2 country codes.
                   items:
@@ -250,6 +254,13 @@ paths:
                 hiringManagersExists:
                   description: (Use `property_exists_or / property_exists_and` instead) If True, only return jobs with a hiring manager. If False, only return jobs without a hiring manager. If None, return all jobs.
                   type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 includeTotalResults:
                   description: 'When enabled, calculates and returns `total_results` and `total_companies` fields in the response. WARNING: This significantly slows down responses as it requires reading the entire dataset. Recommended usage: enable only for the initial request to get totals, then disable for subsequent pagination requests.'
                   type: boolean
@@ -413,9 +424,11 @@ paths:
                   type: array
                 lastFundingRoundDateGte:
                   description: 'Only return companies whose last funding round date is after or on this date. Format: ''YYYY-MM-DD'''
+                  pattern: ^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$
                   type: string
                 lastFundingRoundDateLte:
                   description: 'Only return companies whose last funding round date is before or on this date. Format: ''YYYY-MM-DD'''
+                  pattern: ^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$
                   type: string
                 limit:
                   default: 25
@@ -475,9 +488,11 @@ paths:
                   type: integer
                 postedAtGte:
                   description: ISO 8601 date string (yyyy-mm-dd). Only jobs published in this date or after will be returned.
+                  pattern: ^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$
                   type: string
                 postedAtLte:
                   description: ISO 8601 date string (yyyy-mm-dd). Only jobs published in this date or before will be returned.
+                  pattern: ^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$
                   type: string
                 postedAtMaxAgeDays:
                   description: Date posted max age in days. If 0, only return jobs posted today. If 1, from today and yesterday, etc.
@@ -506,6 +521,13 @@ paths:
                   items:
                     type: string
                   type: array
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 urlDomainNot:
                   description: Exclude jobs if their URL domain (from `url` or `source_url`) is in the provided case-insensitive list. For example, ['greenhouse.io', 'workable.com'] will exclude URLs containing 'greenhouse.io' or 'workable.com'. Refer to our list of sources at https://theirstack.com/en/docs/data/job/sources.
                   items:
@@ -529,10 +551,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -553,15 +575,21 @@ paths:
                                   properties:
                                     avgAnnualSalaryUsd:
                                       description: Midpoint of the posted annual salary, converted to USD.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     cities:
                                       description: Every city the post covers.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     closedUtc:
                                       description: UTC epoch timestamp in seconds (Unix time) the post closed. Multiply by 1000 for a JS Date in milliseconds.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     company:
                                       description: The hiring company's full TheirStack firmographic record.
                                       properties:
@@ -711,72 +739,110 @@ paths:
                                         ycBatch:
                                           description: Y Combinator batch, e.g. W20, for companies that went through it.
                                           type: string
-                                      type: object
+                                      type:
+                                      - object
+                                      - 'null'
                                     companyDomain:
                                       description: Hiring company domain.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     companyName:
                                       description: Hiring company name.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     continents:
                                       description: Every continent the post covers.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     countries:
                                       description: Every country the post covers.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     country:
                                       description: Country name.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     countryCode:
                                       description: ISO 3166-1 alpha-2 country code.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     countryCodes:
                                       description: Every country code the post covers.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     description:
                                       description: Full job description text.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     discoveredUtc:
                                       description: UTC epoch timestamp in seconds (Unix time) TheirStack first saw the post. Multiply by 1000 for a JS Date in milliseconds.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     easyApply:
                                       description: True when the post supports one-click apply.
-                                      type: boolean
+                                      type:
+                                      - boolean
+                                      - 'null'
                                     employmentStatuses:
                                       description: Employment types, e.g. full_time.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     finalUrl:
                                       description: URL the post redirects to, when it does.
                                       format: uri
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     hasBlurredData:
                                       description: True when TheirStack redacted part of the record on this plan.
-                                      type: boolean
+                                      type:
+                                      - boolean
+                                      - 'null'
                                     hybrid:
                                       description: True for a hybrid role.
-                                      type: boolean
+                                      type:
+                                      - boolean
+                                      - 'null'
                                     jobId:
                                       description: TheirStack's own identifier for the post.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     keywordSlugs:
                                       description: Keyword slugs found in the post.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     latitude:
                                       description: Latitude of the posted location.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     location:
                                       description: Location as posted.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     locations:
                                       description: Every resolved location the post covers, with TheirStack's geographic breakdown.
                                       items:
@@ -825,7 +891,9 @@ paths:
                                             type: number
                                           name:
                                             description: Location name.
-                                            type: string
+                                            type:
+                                            - string
+                                            - 'null'
                                           postalCode:
                                             description: Postal code.
                                             type: string
@@ -841,89 +909,139 @@ paths:
                                         required:
                                         - name
                                         type: object
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     longLocation:
                                       description: Long form of the location.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     longitude:
                                       description: Longitude of the posted location.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     managerRoles:
                                       description: Manager roles TheirStack extracted from the post.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     matchingPhrases:
                                       description: Phrases from your pattern filters that matched this post.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     matchingWords:
                                       description: Words from your pattern filters that matched this post.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     maxAnnualSalary:
                                       description: Upper bound of the posted annual salary, in the posted currency.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     maxAnnualSalaryUsd:
                                       description: Upper bound of the posted annual salary, converted to USD.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     minAnnualSalary:
                                       description: Lower bound of the posted annual salary, in the posted currency.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     minAnnualSalaryUsd:
                                       description: Lower bound of the posted annual salary, converted to USD.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     normalizedTitle:
                                       description: TheirStack's normalized form of the title.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     postalCode:
                                       description: Postal code.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     postedUtc:
                                       description: UTC epoch timestamp in seconds (Unix time) the job was posted. Multiply by 1000 for a JS Date in milliseconds.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     remote:
                                       description: True for a fully remote role.
-                                      type: boolean
+                                      type:
+                                      - boolean
+                                      - 'null'
                                     reposted:
                                       description: True when the post is a repost of an earlier one.
-                                      type: boolean
+                                      type:
+                                      - boolean
+                                      - 'null'
                                     repostedUtc:
                                       description: UTC epoch timestamp in seconds (Unix time) the post was last reposted. Multiply by 1000 for a JS Date in milliseconds.
-                                      type: number
+                                      type:
+                                      - number
+                                      - 'null'
                                     salaryCurrency:
                                       description: Currency the posted salary is in.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     salaryString:
                                       description: Salary exactly as the post states it.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     seniority:
                                       description: Seniority band TheirStack assigns, e.g. mid_level.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     shortLocation:
                                       description: Short form of the location.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     sourceUrl:
                                       description: URL TheirStack found the post at.
                                       format: uri
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     stateCode:
                                       description: State or region code.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     technologySlugs:
                                       description: Technology slugs found in the post.
                                       items:
                                         type: string
-                                      type: array
+                                      type:
+                                      - array
+                                      - 'null'
                                     title:
                                       description: Job title as posted.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                     url:
                                       description: URL of the job post.
                                       format: uri
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                   required:
                                   - jobId
                                   - title
@@ -947,11 +1065,17 @@ paths:
                         found:
                           description: False when nothing matched the filters.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Job Search - TheirStack output
                       type: object
+                      x-anyapi-serve-imperfect-records: true
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -963,6 +1087,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1038,7 +1186,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1056,7 +1204,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1139,7 +1287,7 @@ paths:
             min: '0.000000'
             minimumUsd: null
             mode: dynamic
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1156,35 +1304,22 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
+    Error:
       properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
         error:
-          const: trial_cap_reached
+          description: Customer-safe error message.
           type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
       required:
       - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
       type: object
     Payment:
       properties:
@@ -1205,31 +1340,6 @@ components:
       - settlementState
       - costUsd
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -1262,6 +1372,44 @@ components:
       - grantType
       - interval
       - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

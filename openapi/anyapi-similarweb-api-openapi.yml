@@ -1,0 +1,1147 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Similarweb API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: similarweb
+  x-group: Similarweb
+paths:
+  /v1/run/similarweb.overview:
+    post:
+      description: 'Get the Similarweb traffic overview for any website: estimated monthly visits and a three-month history, global, country, and category rank, bounce rate, pages per visit, visit duration, traffic sources including AI chatbots, top countries, and top search keywords - as normalized JSON.
+
+
+        **Price:** billed per result - \$0.02 per 1,000 requests base + \$1.65 per 1,000 results, capped at \$1.67 per 1,000 requests.
+
+
+        **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+
+
+        **Catalog:** Similarweb Website Traffic pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Similarweb endpoint.'
+      operationId: similarweb_overview
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              domain: stripe.com
+            schema:
+              additionalProperties: false
+              example:
+                domain: stripe.com
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                domain:
+                  description: The website's domain, without a scheme or path (e.g. stripe.com).
+                  minLength: 1
+                  type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+              required:
+              - domain
+              title: Similarweb website traffic input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          oneOf:
+                          - type: 'null'
+                          - properties:
+                              avgVisitDurationSeconds:
+                                description: Average visit duration in seconds.
+                                type:
+                                - number
+                                - 'null'
+                              bounceRate:
+                                description: Share of visits that leave after one page, as a fraction from 0 to 1.
+                                type:
+                                - number
+                                - 'null'
+                              category:
+                                description: Similarweb's category slug for the website (e.g. finance, news_and_media).
+                                type:
+                                - string
+                                - 'null'
+                              categoryRank:
+                                description: Rank by traffic within the website's category. Null for websites too small to rank.
+                                type:
+                                - integer
+                                - 'null'
+                              countryCode:
+                                description: Two-letter code of the country countryRank is measured in, the website's top country.
+                                type:
+                                - string
+                                - 'null'
+                              countryRank:
+                                description: Rank by traffic within countryCode. Null for websites too small to rank.
+                                type:
+                                - integer
+                                - 'null'
+                              description:
+                                description: The website's meta description as Similarweb records it.
+                                type:
+                                - string
+                                - 'null'
+                              domain:
+                                description: The website's domain. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              globalRank:
+                                description: Similarweb global rank by traffic. Null for websites too small to rank. Populated whenever the provider has data for the entity.
+                                type:
+                                - integer
+                                - 'null'
+                                x-anyapi-must-populate: true
+                              image:
+                                description: Screenshot of the website's homepage.
+                                type:
+                                - string
+                                - 'null'
+                              monthlyVisits:
+                                description: Estimated total visits in the snapshot month. Populated whenever the provider has data for the entity.
+                                type:
+                                - integer
+                                - 'null'
+                                x-anyapi-must-populate: true
+                              pagesPerVisit:
+                                description: Average pages viewed per visit.
+                                type:
+                                - number
+                                - 'null'
+                              snapshotUtc:
+                                description: 'The month the traffic figures describe: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds.'
+                                type:
+                                - number
+                                - 'null'
+                              title:
+                                description: The website's page title as Similarweb records it.
+                                type:
+                                - string
+                                - 'null'
+                              topCountries:
+                                description: Countries sending the most visits, up to five, largest first. Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    countryCode:
+                                      description: Two-letter country code.
+                                      type: string
+                                    countryName:
+                                      description: Country name in English.
+                                      type: string
+                                    share:
+                                      description: Share of the website's visits, as a fraction from 0 to 1 (0.25 means 25%).
+                                      type: number
+                                  required:
+                                  - countryCode
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                              topKeywords:
+                                description: Search keywords sending the most visits, up to five. Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    cpcUsd:
+                                      description: Average cost per click in USD. Null when Similarweb has no figure.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    estimatedValue:
+                                      description: Similarweb's estimated value of the keyword to this website, as Similarweb publishes it.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    keyword:
+                                      description: The search keyword.
+                                      type: string
+                                    searchVolume:
+                                      description: Monthly search volume for the keyword.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                  required:
+                                  - keyword
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                              trafficSources:
+                                description: Where the website's visits come from. Each value is a fraction from 0 to 1 of all visits. Populated whenever the provider has data for the entity.
+                                properties:
+                                  affiliate:
+                                    description: Share of visits that arrive from affiliate and paid referral links, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  direct:
+                                    description: Share of visits that arrive from typing the address or bookmarks, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  displayAds:
+                                    description: Share of visits that arrive from display ads, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  genAi:
+                                    description: Share of visits that arrive from AI chatbots such as ChatGPT, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  mail:
+                                    description: Share of visits that arrive from email, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  referrals:
+                                    description: Share of visits that arrive from links on other websites, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  searchOrganic:
+                                    description: Share of visits that arrive from unpaid search results, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  searchPaid:
+                                    description: Share of visits that arrive from paid search ads, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  socialOrganic:
+                                    description: Share of visits that arrive from unpaid social media, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                  socialPaid:
+                                    description: Share of visits that arrive from paid social media ads, as a fraction from 0 to 1 (0.25 means 25%).
+                                    type:
+                                    - number
+                                    - 'null'
+                                type: object
+                                x-anyapi-must-populate: true
+                              visitsHistory:
+                                description: Estimated monthly visits for recent months, oldest first. Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    monthUtc:
+                                      description: 'First day of the month: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds.'
+                                      type: number
+                                    visits:
+                                      description: Estimated visits in that month.
+                                      type: integer
+                                  required:
+                                  - monthUtc
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                            required:
+                            - domain
+                            - title
+                            - description
+                            - category
+                            - image
+                            - snapshotUtc
+                            - globalRank
+                            - countryCode
+                            - countryRank
+                            - categoryRank
+                            - monthlyVisits
+                            - bounceRate
+                            - pagesPerVisit
+                            - avgVisitDurationSeconds
+                            - visitsHistory
+                            - trafficSources
+                            - topCountries
+                            - topKeywords
+                            type: object
+                        found:
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: Similarweb website traffic output
+                      type: object
+                      x-anyapi-result-list: false
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Similarweb Website Traffic
+      tags:
+      - similarweb
+      x-mint:
+        href: /api-reference/similarweb/overview
+      x-payment-info:
+        price:
+          currency: USD
+          max: '0.001670'
+          min: '0.000020'
+          mode: dynamic
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            currency: USD
+            max: '0.001670'
+            min: '0.001000'
+            minimumUsd: '0.001000'
+            mode: dynamic
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            currency: USD
+            max: '0.001670'
+            min: '0.000020'
+            minimumUsd: null
+            mode: dynamic
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/similarweb.similar_sites:
+    post:
+      description: 'Find the websites Similarweb ranks as most similar to any website: up to 20 competitor and alternative sites in similarity order, each with its similarity score, category, top-country rank, estimated monthly visits, and description - as normalized JSON.
+
+
+        **Price:** billed per result - \$0.02 per 1,000 requests base + \$1.65 per 1,000 results, capped at \$1.67 per 1,000 requests.
+
+
+        **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+
+
+        **Catalog:** Similarweb Similar Sites pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Similarweb endpoint.'
+      operationId: similarweb_similar_sites
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              domain: stripe.com
+            schema:
+              additionalProperties: false
+              example:
+                domain: stripe.com
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                domain:
+                  description: The website's domain, without a scheme or path (e.g. stripe.com).
+                  minLength: 1
+                  type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+              required:
+              - domain
+              title: Similarweb similar sites input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          oneOf:
+                          - type: 'null'
+                          - properties:
+                              category:
+                                description: Similarweb category of the website (e.g. Finance).
+                                type:
+                                - string
+                                - 'null'
+                              description:
+                                description: The website's meta description as Similarweb records it.
+                                type:
+                                - string
+                                - 'null'
+                              domain:
+                                description: The website's domain. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              sites:
+                                description: Websites most similar to this one, up to 20, most similar first. Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    category:
+                                      description: Similarweb category path of the similar website (e.g. Finance/Banking_Credit_and_Lending).
+                                      type:
+                                      - string
+                                      - 'null'
+                                    description:
+                                      description: The similar website's meta description.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    domain:
+                                      description: The similar website's domain.
+                                      type: string
+                                    image:
+                                      description: Screenshot of the similar website's homepage.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    similarityRank:
+                                      description: Position in the similarity list, 1 being most similar.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    similarityScore:
+                                      description: Similarweb's similarity score from 0 to 1, higher meaning more similar.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    topCountryRank:
+                                      description: The similar website's traffic rank in its own top country.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    totalVisits:
+                                      description: Estimated monthly visits to the similar website.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                  required:
+                                  - domain
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                              tags:
+                                description: Topic tags Similarweb assigns the website.
+                                items:
+                                  type: string
+                                type: array
+                              title:
+                                description: The website's page title as Similarweb records it.
+                                type:
+                                - string
+                                - 'null'
+                              totalVisits:
+                                description: Estimated monthly visits to the website.
+                                type:
+                                - integer
+                                - 'null'
+                            required:
+                            - domain
+                            - title
+                            - description
+                            - category
+                            - totalVisits
+                            - tags
+                            - sites
+                            type: object
+                        found:
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: Similarweb similar sites output
+                      type: object
+                      x-anyapi-result-list: sites
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Similarweb Similar Sites
+      tags:
+      - similarweb
+      x-mint:
+        href: /api-reference/similarweb/similar-sites
+      x-payment-info:
+        price:
+          currency: USD
+          max: '0.001670'
+          min: '0.000020'
+          mode: dynamic
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            currency: USD
+            max: '0.001670'
+            min: '0.001000'
+            minimumUsd: '0.001000'
+            mode: dynamic
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            currency: USD
+            max: '0.001670'
+            min: '0.000020'
+            minimumUsd: null
+            mode: dynamic
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+components:
+  schemas:
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    DeviceUpgrade:
+      properties:
+        deviceCode:
+          type: string
+        expiresIn:
+          minimum: 0
+          type: integer
+        grantType:
+          type: string
+        interval:
+          minimum: 1
+          type: integer
+        tokenEndpoint:
+          format: uri
+          type: string
+        userCode:
+          type: string
+        verificationUri:
+          format: uri
+          type: string
+        verificationUriComplete:
+          format: uri
+          type: string
+      required:
+      - verificationUriComplete
+      - verificationUri
+      - userCode
+      - deviceCode
+      - tokenEndpoint
+      - grantType
+      - interval
+      - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

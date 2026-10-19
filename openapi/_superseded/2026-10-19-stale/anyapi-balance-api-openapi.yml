@@ -1,0 +1,92 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Balance API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: Balance
+paths:
+  /v1/balance:
+    get:
+      description: 'Remaining USD in the wallet behind your API key. Reading the balance is free. The amount is what is left to spend across all APIs, not a per-request price: compare it against an operation''s own USD cost before you run one.'
+      operationId: getBalance
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  usd:
+                    description: Remaining wallet balance in USD.
+                    type: number
+                required:
+                - usd
+                type: object
+          description: Current wallet balance.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+      summary: Get your wallet balance
+      tags:
+      - Balance
+components:
+  schemas:
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

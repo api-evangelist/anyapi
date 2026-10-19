@@ -25,13 +25,13 @@ paths:
         required: true
         schema:
           type: string
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -60,13 +60,13 @@ paths:
                     description: USD charged on the ORIGINAL run, echoed for envelope parity; this re-read is free.
                     type: number
                   items:
-                    description: Number of result rows returned by the original run.
+                    description: Number of result rows returned by the original run; an API that returns one record counts it as one row.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
                     type: string
                   output:
-                    description: The normalized result (`{found, data}` by default), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
+                    description: The normalized result (`{found, data}` by default, plus `reason` when `found` is false), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
                   provider:
                     description: Always "AnyAPI".
                     type: string
@@ -76,6 +76,30 @@ paths:
                   resultId:
                     description: The id you requested, echoed so you can keep re-reading the same cached result.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider

@@ -1,0 +1,151 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Results API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: Results
+paths:
+  /v1/results/{id}:
+    get:
+      description: Re-read the full unshaped result of a prior run from its short-lived cache and re-shape it with the same `fields`, `max_items`, `summary`, and `jq` query params as /v1/run, all for FREE (no re-billing). Results are scoped to the customer that paid for them and cached for about 15 minutes. Use this to read the rest of, or reshape, a paid result instead of re-running and paying again.
+      operationId: getResult
+      parameters:
+      - description: The `resultId` returned on a prior run response envelope.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the ORIGINAL run, echoed for envelope parity; this re-read is free.
+                    type: number
+                  items:
+                    description: Number of result rows returned by the original run.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    description: The normalized result (`{found, data}` by default), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: False on this cached-result endpoint; true is reserved for durable idempotency replays from POST /v1/run/{sku}.
+                    type: boolean
+                  resultId:
+                    description: The id you requested, echoed so you can keep re-reading the same cached result.
+                    type: string
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: The re-shaped result envelope (same shape as a run response).
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unknown or expired result id (results are cached about 15 minutes); re-run the API for fresh data.
+      summary: Re-read a cached result for free
+      tags:
+      - Results
+components:
+  schemas:
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

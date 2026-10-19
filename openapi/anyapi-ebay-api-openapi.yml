@@ -20,7 +20,7 @@ paths:
       description: 'Fetch one eBay listing by URL and get the full offer record: price, condition, shipping, item location, seller feedback, quantity, watchers, and live auction state (bid count and end time).
 
 
-        **Price:** \$0.90 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
@@ -29,13 +29,13 @@ paths:
         **Catalog:** eBay Product pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Ebay endpoint.'
       operationId: ebay_product
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -78,10 +78,28 @@ paths:
               example:
                 url: https://www.ebay.com/itm/133576802017
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Full eBay listing URL (e.g. https://www.ebay.com/itm/133576802017). The marketplace is taken from the host, so an ebay.co.uk or ebay.de URL returns that site's listing and currency. Item ids come back on every row of ebay.search and ebay.sold_listings.
                   type: string
@@ -100,10 +118,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -125,12 +143,20 @@ paths:
                                     availability:
                                       description: Stock state as eBay reports it (e.g. InStock, OutOfStock).
                                       type: string
+                                    bestOfferEnabled:
+                                      description: True when the seller accepts Best Offer on this listing.
+                                      type: boolean
                                     bidCount:
                                       description: Bids placed so far, for auction listings.
                                       type: integer
                                     brand:
                                       description: Brand as listed, when the seller filled it in.
                                       type: string
+                                    categories:
+                                      description: eBay category path the listing sits in.
+                                      items:
+                                        type: string
+                                      type: array
                                     condition:
                                       description: Item condition as listed (e.g. New, Used). Populated whenever the provider has data for the entity.
                                       type: string
@@ -144,10 +170,28 @@ paths:
                                     freeShipping:
                                       description: True when the listing ships free.
                                       type: boolean
+                                    gtin:
+                                      description: Global Trade Item Number (UPC/EAN) as listed.
+                                      type: string
                                     image:
                                       description: Primary listing image URL. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    images:
+                                      description: All listing images, primary first.
+                                      items:
+                                        properties:
+                                          height:
+                                            description: Image height in pixels.
+                                            type: integer
+                                          url:
+                                            description: Image URL.
+                                            type: string
+                                          width:
+                                            description: Image width in pixels.
+                                            type: integer
+                                        type: object
+                                      type: array
                                     itemId:
                                       description: eBay item identifier. Populated whenever the provider has data for the entity.
                                       type: string
@@ -168,6 +212,9 @@ paths:
                                       description: Current asking price, or the current bid on a live auction, in the site currency. Populated whenever the provider has data for the entity.
                                       type: number
                                       x-anyapi-must-populate: true
+                                    productId:
+                                      description: eBay catalog product identifier the listing is matched to.
+                                      type: string
                                     quantityAvailable:
                                       description: Units the seller still has available, when the listing shows a quantity.
                                       type: integer
@@ -193,10 +240,16 @@ paths:
                                     shippingCost:
                                       description: Shipping cost to the default destination as a numeric amount; absent when eBay quotes no flat cost.
                                       type: number
+                                    subtitle:
+                                      description: Seller subtitle shown under the listing title.
+                                      type: string
                                     title:
                                       description: Listing title as it appears on eBay. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    updatedUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the listing was last modified.
+                                      type: number
                                     url:
                                       description: Canonical listing URL (tracking query params stripped). Populated whenever the provider has data for the entity.
                                       type: string
@@ -217,6 +270,11 @@ paths:
                         found:
                           description: True when the listing was found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -233,6 +291,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -308,7 +390,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -326,7 +408,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -350,7 +432,7 @@ paths:
         href: /api-reference/ebay/product
       x-payment-info:
         price:
-          amount: '0.000900'
+          amount: '0.001200'
           currency: USD
           mode: fixed
         protocols:
@@ -379,7 +461,7 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
-            amount: '0.001000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: '0.001000'
             mode: fixed
@@ -402,11 +484,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
-            amount: '0.000900'
+            amount: '0.001200'
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -435,13 +517,13 @@ paths:
         **Catalog:** eBay Product Full pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Ebay endpoint.'
       operationId: ebay_product_full
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -484,10 +566,28 @@ paths:
               example:
                 url: https://www.ebay.com/itm/133576802017
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: 'Full eBay listing URL (e.g. https://www.ebay.com/itm/133576802017). Works on ended and sold listings as well as live ones, so it composes with ebay.sold_listings: pull the comps cheaply, then enrich the few you care about.'
                   type: string
@@ -506,10 +606,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -531,6 +631,9 @@ paths:
                                     availability:
                                       description: Stock state as eBay reports it (e.g. in_stock, out_of_stock).
                                       type: string
+                                    brand:
+                                      description: Brand as listed, when the seller filled it in.
+                                      type: string
                                     category:
                                       description: Full category path, e.g. "Electronics>Cell Phones & Accessories>Cell Phones & Smartphones".
                                       type: string
@@ -538,6 +641,9 @@ paths:
                                       description: Item condition as listed (e.g. New, Used). Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    countryCode:
+                                      description: ISO country code of the eBay marketplace the listing is on.
+                                      type: string
                                     currency:
                                       description: ISO currency code of the price (e.g. USD, GBP).
                                       type: string
@@ -545,6 +651,9 @@ paths:
                                       description: The seller's own listing description, as plain text. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    gtin:
+                                      description: Global Trade Item Number (UPC/EAN) as listed.
+                                      type: string
                                     image:
                                       description: Primary listing image URL. Populated whenever the provider has data for the entity.
                                       type: string
@@ -625,6 +734,11 @@ paths:
                         found:
                           description: True when the listing was found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -642,6 +756,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -717,7 +855,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -735,7 +873,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -815,7 +953,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -835,22 +973,22 @@ paths:
       description: 'Search eBay active listings by keyword with optional price-range, item-condition, listing-type, and sort filters and get title, price, condition, shipping, and seller in one normalized response.
 
 
-        **Price:** \$0.90 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
-        **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+        **Routing:** 3 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
         **Catalog:** eBay Search pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Ebay endpoint.'
       operationId: ebay_search
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -897,6 +1035,10 @@ paths:
                 query: nintendo switch
                 sort: price_low
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 condition:
                   description: Filter by one or more item conditions; omit for all conditions (e.g. ["new", "open_box"]).
                   items:
@@ -908,6 +1050,13 @@ paths:
                     - for_parts
                     type: string
                   type: array
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 limit:
                   description: Maximum number of results to return (1 to 25, default 25).
                   maximum: 25
@@ -935,6 +1084,17 @@ paths:
                 query:
                   description: Search keywords, e.g. "nintendo switch" or "vintage levis 501".
                   type: string
+                requireFields:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Name the output fields this request must be able to return, for example `sellerName`, and it is served only by a source that returns every one of them. Fields you do not name are still returned whenever the serving source has them. This can raise your price: when the cheapest source cannot return a named field, a dearer source serves, and you are quoted and charged its price. A named field can still be absent on a listing that genuinely lacks it. Naming a combination that no single source returns together is refused as invalid input, with no charge.'
+                  items:
+                    enum:
+                    - listingType
+                    - sellerFeedbackCount
+                    - sellerFeedbackPercent
+                    - sellerName
+                    type: string
+                  type: array
+                  uniqueItems: true
                 sort:
                   description: Result sort order; omit for eBay's Best Match (e.g. price_low sorts by lowest price plus shipping first).
                   enum:
@@ -944,6 +1104,13 @@ paths:
                   - price_low
                   - price_high
                   type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - query
               title: eBay search input
@@ -959,10 +1126,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -980,7 +1147,13 @@ paths:
                                 description: 'Listing records: title, price, condition, shipping cost, seller info, image, and item URL. Populated whenever the provider has data for the entity.'
                                 items:
                                   properties:
+                                    bidCount:
+                                      description: Bids placed so far, for auction listings.
+                                      type: integer
                                     condition:
+                                      type: string
+                                    currency:
+                                      description: ISO currency code of the price (e.g. USD).
                                       type: string
                                     image:
                                       description: Primary listing image URL. Populated whenever the provider has data for the entity.
@@ -991,16 +1164,28 @@ paths:
                                       type: string
                                       x-anyapi-must-populate: true
                                     listingType:
-                                      description: Auction, FixedPrice, etc.
-                                      type: string
+                                      description: Auction, FixedPrice, etc. Null when the serving source does not publish the listing format.
+                                      type:
+                                      - string
+                                      - 'null'
                                     price:
                                       description: Listing price.
                                       type: number
+                                    sellerFeedbackCount:
+                                      description: Seller's lifetime feedback count, or null when the serving source does not publish it.
+                                      type:
+                                      - number
+                                      - 'null'
                                     sellerFeedbackPercent:
-                                      description: Seller positive-feedback percentage.
-                                      type: number
+                                      description: Seller positive-feedback percentage, or null when the serving source does not publish it.
+                                      type:
+                                      - number
+                                      - 'null'
                                     sellerName:
-                                      type: string
+                                      description: Seller username, or null when the serving source does not publish the seller.
+                                      type:
+                                      - string
+                                      - 'null'
                                     shippingCost:
                                       description: Shipping cost or free-delivery label.
                                       type: string
@@ -1024,6 +1209,11 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1040,6 +1230,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1115,7 +1329,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1133,7 +1347,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1157,10 +1371,9 @@ paths:
         href: /api-reference/ebay/search
       x-payment-info:
         price:
+          amount: '0.001200'
           currency: USD
-          max: '0.065500'
-          min: '0.000900'
-          mode: dynamic
+          mode: fixed
         protocols:
         - x402:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1187,11 +1400,10 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
+            amount: '0.001200'
             currency: USD
-            max: '0.065500'
-            min: '0.001000'
             minimumUsd: '0.001000'
-            mode: dynamic
+            mode: fixed
             quoteBasis: floor
           protocol:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1211,12 +1423,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
+            amount: '0.001200'
             currency: USD
-            max: '0.065500'
-            min: '0.000900'
             minimumUsd: null
-            mode: dynamic
-            quoteBasis: funded_ceiling
+            mode: fixed
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1233,25 +1444,25 @@ paths:
             timing: before_execution
   /v1/run/ebay.sold_listings:
     post:
-      description: 'Retrieve recently sold eBay listings for any keyword with optional price-range, condition, and sort filters (sold price, sale date, condition, seller, item details); ideal for pricing research.
+      description: 'Retrieve recently sold eBay listings for any keyword with optional price-range, condition, category, sold-date, and sort filters, page by page (sold price, sale date, condition, seller, item details); ideal for pricing research.
 
 
-        **Price:** billed per result - \$22.00 per 1,000 requests base + \$2.64 per 1,000 results, capped at \$88.00 per 1,000 requests.
+        **Price:** \$3.00 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
-        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+        **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
         **Catalog:** eBay Sold Listings pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Ebay endpoint.'
       operationId: ebay_sold_listings
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1298,6 +1509,14 @@ paths:
                 query: iphone 13 pro
                 sort: ended_recently
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                categoryId:
+                  description: Optional numeric eBay category id to search within (e.g. 9355 for Cell Phones & Smartphones, 9394 for Cell Phone Accessories).
+                  pattern: ^[0-9]+$
+                  type: string
                 condition:
                   default: any
                   description: Item condition filter (e.g. used).
@@ -1306,12 +1525,24 @@ paths:
                   - new
                   - used
                   type: string
+                endDate:
+                  description: 'Only return listings sold on or before this date, inclusive, in YYYY-MM-DD format (e.g. 2026-09-15). This bound is applied to each page after it is fetched, so a page can hold fewer than limit listings, or none, while hasMore is still true: keep requesting the next page until hasMore is false.'
+                  pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+                  type: string
                 freeShipping:
-                  description: Only include listings that sold with free shipping.
+                  description: 'Not supported by the current sources: only false (no filter) is accepted; true is refused without charge.'
                   type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 limit:
-                  description: Maximum number of results to return (1-25, default 25). You are billed per result returned, so a lower limit costs less.
-                  maximum: 25
+                  default: 25
+                  description: Maximum number of results to return (1-60, default 25).
+                  maximum: 60
                   minimum: 1
                   type: integer
                 listingType:
@@ -1329,6 +1560,11 @@ paths:
                   description: Optional minimum sold price in the site currency (e.g. 200).
                   minimum: 0
                   type: number
+                page:
+                  default: 1
+                  description: 1-based results page. Use with hasMore in the output to paginate, and keep query, filters, and limit the same while walking pages, because limit sets the page size.
+                  minimum: 1
+                  type: integer
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
@@ -1337,10 +1573,10 @@ paths:
                   description: Search keyword for sold items (e.g. iphone 13 pro).
                   type: string
                 returnsAccepted:
-                  description: Only include listings from sellers who accept returns.
+                  description: 'Not supported by the current sources: only false (no filter) is accepted; true is refused without charge.'
                   type: boolean
                 seller:
-                  description: Restrict to sold listings from one seller username (e.g. rainierconsignment).
+                  description: 'Not supported by the current sources: a request that sets it is refused without charge.'
                   type: string
                 site:
                   default: ebay.com
@@ -1349,11 +1585,22 @@ paths:
                   - ebay.com
                   type: string
                 sort:
-                  description: Result sort order; omit for eBay's default best-match order (e.g. price_high sorts by highest sold price first).
+                  description: Result sort order; omitted means ended_recently (e.g. price_high sorts by highest sold price plus shipping first).
                   enum:
                   - ended_recently
                   - price_low
                   - price_high
+                  type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                startDate:
+                  description: Only return listings sold on or after this date, inclusive, in YYYY-MM-DD format (e.g. 2026-09-01).
+                  pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
                   type: string
               required:
               - query
@@ -1370,10 +1617,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1387,15 +1634,24 @@ paths:
                           - type: 'null'
                           - additionalProperties: false
                             properties:
+                              hasMore:
+                                description: True when another results page exists. With endDate set a page can be short or empty while this is still true; request page + 1 to continue.
+                                type: boolean
                               items:
                                 description: 'Sold listing records: title, sold price, sale date, condition, seller, and item URL. Populated whenever the provider has data for the entity.'
                                 items:
                                   properties:
+                                    bestOfferAccepted:
+                                      description: True when eBay marked the sale as Best Offer accepted. Absent when the source could not tell.
+                                      type: boolean
                                     bidCount:
                                       description: Number of bids the listing received, for auction sales.
                                       type: integer
                                     condition:
                                       description: Item condition as listed (e.g. Pre-Owned).
+                                      type: string
+                                    countryCode:
+                                      description: ISO country code of the eBay marketplace the sale happened on.
                                       type: string
                                     epid:
                                       description: eBay catalog product identifier (ePID), when the listing is matched to a catalog product.
@@ -1414,25 +1670,28 @@ paths:
                                       type: string
                                       x-anyapi-must-populate: true
                                     listingType:
-                                      description: Sale format (e.g. Fixed price, Auction).
+                                      description: 'Sale format: Auction or Fixed price.'
                                       type: string
                                     sellerFeedbackCount:
-                                      description: Seller's lifetime feedback count, when available.
+                                      description: Seller's lifetime feedback count. Populated whenever the provider has data for the entity.
                                       type: integer
+                                      x-anyapi-must-populate: true
                                     sellerFeedbackPercent:
-                                      description: Seller's positive-feedback percentage, when available.
+                                      description: Seller's positive-feedback percentage. Populated whenever the provider has data for the entity.
                                       type: number
+                                      x-anyapi-must-populate: true
                                     sellerUsername:
-                                      description: Seller's eBay username, when available.
+                                      description: Seller's eBay username. Populated whenever the provider has data for the entity.
                                       type: string
+                                      x-anyapi-must-populate: true
                                     shippingCost:
-                                      description: Shipping cost as displayed on the listing (e.g. "Free delivery", "$5.55 delivery").
+                                      description: Shipping the buyer paid, in the site currency (e.g. "$5.55"; "$0" is free shipping).
                                       type: string
                                     soldCurrency:
                                       description: ISO currency code of the sold price (e.g. USD).
                                       type: string
                                     soldPrice:
-                                      description: Final sold price in the site currency.
+                                      description: 'Final sold price in the site currency. When bestOfferAccepted is true this is the listing''s asking price: eBay does not publish the accepted offer amount.'
                                       type: number
                                     soldUtc:
                                       description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds.
@@ -1457,6 +1716,11 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1473,6 +1737,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1548,7 +1836,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1566,7 +1854,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1590,10 +1878,9 @@ paths:
         href: /api-reference/ebay/sold-listings
       x-payment-info:
         price:
+          amount: '0.003000'
           currency: USD
-          max: '0.088000'
-          min: '0.022000'
-          mode: dynamic
+          mode: fixed
         protocols:
         - x402:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1620,11 +1907,10 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
+            amount: '0.003000'
             currency: USD
-            max: '0.088000'
-            min: '0.022000'
             minimumUsd: '0.001000'
-            mode: dynamic
+            mode: fixed
             quoteBasis: floor
           protocol:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1644,12 +1930,466 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
+            amount: '0.003000'
             currency: USD
-            max: '0.088000'
-            min: '0.022000'
             minimumUsd: null
-            mode: dynamic
-            quoteBasis: funded_ceiling
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/ebay.sold_listings_thin:
+    post:
+      description: 'Retrieve recently sold eBay listings for any keyword with the sold price, sale date, condition, format, bids, and whether a Best Offer was accepted, without seller details; the lighter sibling of eBay Sold Listings for price comps.
+
+
+        **Price:** \$3.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** 3 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+
+
+        **Catalog:** eBay Sold Listings (Basic) pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Ebay endpoint.'
+      operationId: ebay_sold_listings_thin
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              limit: 10
+              query: iphone 13 pro
+              sort: ended_recently
+            schema:
+              additionalProperties: false
+              example:
+                limit: 10
+                query: iphone 13 pro
+                sort: ended_recently
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                condition:
+                  default: any
+                  description: Item condition filter (e.g. used).
+                  enum:
+                  - any
+                  - new
+                  - used
+                  type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                limit:
+                  default: 25
+                  description: Maximum number of results to return (1-60, default 25).
+                  maximum: 60
+                  minimum: 1
+                  type: integer
+                listingType:
+                  description: Restrict to a listing format; omit or use all for both (e.g. auction for auction sales only).
+                  enum:
+                  - all
+                  - auction
+                  - buy_it_now
+                  type: string
+                maxPrice:
+                  description: Optional maximum sold price in the site currency (e.g. 500).
+                  minimum: 0
+                  type: number
+                minPrice:
+                  description: Optional minimum sold price in the site currency (e.g. 200).
+                  minimum: 0
+                  type: number
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                query:
+                  description: Search keyword for sold items (e.g. iphone 13 pro).
+                  type: string
+                site:
+                  default: ebay.com
+                  description: eBay country site to search. Sold-listing coverage is currently US only.
+                  enum:
+                  - ebay.com
+                  type: string
+                sort:
+                  description: Result sort order; omitted means ended_recently (e.g. price_high sorts by highest sold price plus shipping first).
+                  enum:
+                  - ended_recently
+                  - price_low
+                  - price_high
+                  type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+              required:
+              - query
+              title: eBay sold listings (basic) input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              items:
+                                description: 'Sold listing records: title, sold price, sale date, condition, format, bids, and item URL, without seller details. Populated whenever the provider has data for the entity.'
+                                items:
+                                  properties:
+                                    bestOfferAccepted:
+                                      description: True when eBay marked the sale as Best Offer accepted. Absent when the source could not tell.
+                                      type: boolean
+                                    bidCount:
+                                      description: Number of bids the listing received, for auction sales.
+                                      type: integer
+                                    condition:
+                                      description: Item condition as listed (e.g. Pre-Owned).
+                                      type: string
+                                    image:
+                                      description: Primary listing image URL. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    itemId:
+                                      description: eBay item identifier. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    listingType:
+                                      description: 'Sale format: Auction or Fixed price.'
+                                      type: string
+                                    shippingCost:
+                                      description: Shipping the buyer paid, in the site currency (e.g. "$5.55"; "$0" is free shipping).
+                                      type: string
+                                    soldCurrency:
+                                      description: ISO currency code of the sold price (e.g. USD).
+                                      type: string
+                                    soldPrice:
+                                      description: 'Final sold price in the site currency. When bestOfferAccepted is true this is the listing''s asking price: eBay does not publish the accepted offer amount.'
+                                      type: number
+                                    soldUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds.
+                                      type: number
+                                    title:
+                                      description: Listing title as it appeared on eBay. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    url:
+                                      description: Canonical listing URL. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                  required:
+                                  - itemId
+                                  - title
+                                  - url
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                            required:
+                            - items
+                            type: object
+                        found:
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: eBay sold listings (basic) output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: eBay Sold Listings (Basic)
+      tags:
+      - ebay
+      x-mint:
+        href: /api-reference/ebay/sold-listings-thin
+      x-payment-info:
+        price:
+          amount: '0.003000'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.003000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.003000'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1666,35 +2406,22 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
+    Error:
       properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
         error:
-          const: trial_cap_reached
+          description: Customer-safe error message.
           type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
       required:
       - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
       type: object
     Payment:
       properties:
@@ -1715,31 +2442,6 @@ components:
       - settlementState
       - costUsd
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -1772,6 +2474,44 @@ components:
       - grantType
       - interval
       - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

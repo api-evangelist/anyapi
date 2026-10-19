@@ -1,0 +1,1064 @@
+openapi: 3.2.0
+info:
+  contact:
+    email: support@getanyapi.com
+  description: 'Any API, one wallet, USD, no subscriptions. Each API is a single discovered operation: send the normalized input, get a normalized result. Prices and payment outcomes are reported in USD; each operation documents the settlement policy for its enabled payment rails.'
+  title: Any Slickdeals API
+  version: 1.0.0
+  x-guidance: 'Use each operation''s published method and path with its normalized JSON input (see the operation requestBody). Before setting a client or tool timeout, GET /v1/apis/{sku} and inspect its trailing-30-day latency p50/p95/p99 and sample; p99 is an observation, not a maximum. To pay: send your AnyAPI key (Authorization: Bearer, billed from your USD wallet). For operations that advertise an inline rail, pay per call inline with x402 - call with no key, receive HTTP 402 with a PAYMENT-REQUIRED header, then retry with the PAYMENT-SIGNATURE header (base, no account needed); or pay per call inline with MPP (Machine Payments Protocol) - call with no key, receive HTTP 402 with a WWW-Authenticate: Payment challenge, then retry with the Authorization: Payment header (tempo, no account needed). x402 settles after execution; execution failure is reported as released; mpp settles before execution; execution failure is reported as charged_undelivered.'
+servers:
+- url: https://api.getanyapi.com
+security:
+- bearerAuth: []
+- apiKeyAuth: []
+tags:
+- name: slickdeals
+  x-group: Slickdeals
+paths:
+  /v1/run/slickdeals.deal:
+    post:
+      description: 'Fetch one Slickdeals deal by URL and get title, price, list price, store, coupon code, score, views, comments, and description in one normalized response.
+
+
+        **Price:** \$2.13 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Slickdeals Deal pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Slickdeals endpoint.'
+      operationId: slickdeals_deal
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              url: https://slickdeals.net/f/20177112-lg-55-c6-series-oled-evo-ai-4k-smart-webos-tv-2026-best-buy-amazon-999-99
+            schema:
+              additionalProperties: false
+              example:
+                url: https://slickdeals.net/f/20177112-lg-55-c6-series-oled-evo-ai-4k-smart-webos-tv-2026-best-buy-amazon-999-99
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                url:
+                  description: Slickdeals deal page URL, e.g. https://slickdeals.net/f/20177112-lg-55-c6-series-oled-evo-ai-4k-smart-webos-tv-2026-best-buy-amazon-999-99.
+                  pattern: ^https?://(www\.)?slickdeals\.net/f/[0-9]+
+                  type: string
+              required:
+              - url
+              title: Slickdeals deal input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: Deal wrapper, or null when the URL resolved to no deal.
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              items:
+                                description: Deal detail records (one per requested deal URL). Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    brand:
+                                      description: Brand Slickdeals files the deal under, or null when none.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    category:
+                                      description: Slickdeals category, e.g. "4K TVs", or null when none.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    commentsCount:
+                                      description: Number of comments on the deal, or null when not reported.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    couponCode:
+                                      description: Coupon code the deal needs, or null when it needs none.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    createdUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the deal was posted; null when not reported. Populated whenever the provider has data for the entity.
+                                      type:
+                                      - number
+                                      - 'null'
+                                      x-anyapi-must-populate: true
+                                    currency:
+                                      description: Price currency code, e.g. "USD", or null when no price is posted.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    dealId:
+                                      description: Slickdeals deal id. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    description:
+                                      description: Deal description as posted, or null when it has none.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    image:
+                                      description: Primary deal image URL.
+                                      type: string
+                                    images:
+                                      description: Deal image URLs.
+                                      items:
+                                        type: string
+                                      type: array
+                                    isExpired:
+                                      description: True when the community marked the deal expired, or null when not reported.
+                                      type:
+                                      - boolean
+                                      - 'null'
+                                    listPrice:
+                                      description: List price the deal compares against, or null when not posted.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    price:
+                                      description: Deal price in USD, or null when the deal has no numeric price.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    score:
+                                      description: Net community thumbs score, or null when not reported.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    store:
+                                      description: Store selling the deal, e.g. "Best Buy", or null when not posted.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    title:
+                                      description: Deal title as posted. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    url:
+                                      description: Slickdeals deal page URL. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    viewsCount:
+                                      description: Number of views of the deal, or null when not reported.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                  required:
+                                  - dealId
+                                  - title
+                                  - url
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                            required:
+                            - items
+                            type: object
+                        found:
+                          description: True when the deal was found.
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: Slickdeals deal output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Slickdeals Deal
+      tags:
+      - slickdeals
+      x-mint:
+        href: /api-reference/slickdeals/deal
+      x-payment-info:
+        price:
+          amount: '0.002130'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.002130'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.002130'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/slickdeals.search:
+    post:
+      description: 'Search Slickdeals deals by keyword with optional sort, price, discount, and page filters and get title, price, list price, store, score, and comment count for each deal in one normalized response.
+
+
+        **Price:** \$2.13 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Slickdeals Search pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Slickdeals endpoint.'
+      operationId: slickdeals_search
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              query: airpods
+            schema:
+              additionalProperties: false
+              example:
+                query: airpods
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                hideExpired:
+                  description: Optional; true leaves out deals the community marked expired.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                maxPrice:
+                  description: Optional maximum deal price in USD; deals without a numeric price are left out.
+                  minimum: 0
+                  type: number
+                minDiscount:
+                  description: Optional; keep only deals at least this many percent off the list price, e.g. 50.
+                  maximum: 99
+                  minimum: 1
+                  type: integer
+                minPrice:
+                  description: Optional minimum deal price in USD; deals without a numeric price are left out.
+                  minimum: 0
+                  type: number
+                page:
+                  default: 1
+                  description: 1-based page of 40 deals; Slickdeals stops at page 25. Each page is billed as one request.
+                  maximum: 25
+                  minimum: 1
+                  type: integer
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                query:
+                  description: Search keywords, e.g. "airpods" or "laptop".
+                  minLength: 1
+                  type: string
+                sort:
+                  description: Result order; omit for Slickdeals' relevance order (e.g. new for the most recently posted deals first).
+                  enum:
+                  - best_match
+                  - new
+                  - popular
+                  - price_low
+                  - price_high
+                  type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+              required:
+              - query
+              title: Slickdeals search input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: Search result wrapper, or null when nothing matched.
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              items:
+                                description: Matching Slickdeals deal records for the requested page. Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    commentsCount:
+                                      description: Number of comments on the deal, or null when not reported.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    createdUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the deal was posted; null when not reported. Populated whenever the provider has data for the entity.
+                                      type:
+                                      - number
+                                      - 'null'
+                                      x-anyapi-must-populate: true
+                                    currency:
+                                      description: Price currency code, e.g. "USD", or null when no price is posted.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    dealId:
+                                      description: Slickdeals deal id; use the deal URL with the Slickdeals Deal SKU. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    image:
+                                      description: Deal thumbnail image URL.
+                                      type: string
+                                    isExpired:
+                                      description: True when the community marked the deal expired, or null when not reported.
+                                      type:
+                                      - boolean
+                                      - 'null'
+                                    listPrice:
+                                      description: List price the deal compares against, or null when not posted.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    price:
+                                      description: Deal price in USD, or null when the deal has no numeric price.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    score:
+                                      description: Net community thumbs score, or null when not reported.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    store:
+                                      description: Store selling the deal, e.g. "Amazon", or null when not posted.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    title:
+                                      description: Deal title as posted. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    url:
+                                      description: Slickdeals deal page URL. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    viewsCount:
+                                      description: Number of views of the deal, or null when not reported.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                  required:
+                                  - dealId
+                                  - title
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                              totalResults:
+                                description: Total number of matching deals Slickdeals reports (it stops counting at 1000), or null when not reported.
+                                type:
+                                - integer
+                                - 'null'
+                            required:
+                            - items
+                            type: object
+                        found:
+                          description: True when the search returned at least one deal.
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: Slickdeals search output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Slickdeals Search
+      tags:
+      - slickdeals
+      x-mint:
+        href: /api-reference/slickdeals/search
+      x-payment-info:
+        price:
+          amount: '0.002130'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.002130'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.002130'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+components:
+  schemas:
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    DeviceUpgrade:
+      properties:
+        deviceCode:
+          type: string
+        expiresIn:
+          minimum: 0
+          type: integer
+        grantType:
+          type: string
+        interval:
+          minimum: 1
+          type: integer
+        tokenEndpoint:
+          format: uri
+          type: string
+        userCode:
+          type: string
+        verificationUri:
+          format: uri
+          type: string
+        verificationUriComplete:
+          format: uri
+          type: string
+      required:
+      - verificationUriComplete
+      - verificationUri
+      - userCode
+      - deviceCode
+      - tokenEndpoint
+      - grantType
+      - interval
+      - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: Your AnyAPI key.
+      in: header
+      name: X-API-Key
+      type: apiKey
+      x-default: YOUR_ANYAPI_KEY
+    bearerAuth:
+      description: Your AnyAPI key as a Bearer token.
+      scheme: bearer
+      type: http
+      x-default: YOUR_ANYAPI_KEY

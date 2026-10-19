@@ -20,7 +20,7 @@ paths:
       description: 'Fetch a Spotify album''s tracklist, play counts, label, and release details by album URL or ID.
 
 
-        **Price:** \$2.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
@@ -29,13 +29,13 @@ paths:
         **Catalog:** Spotify Album pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Spotify endpoint.'
       operationId: spotify_album
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -78,13 +78,31 @@ paths:
               example:
                 url: https://open.spotify.com/album/0pgrg7phBbnwGJ2HBEl9EG
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 id:
                   description: Spotify album ID (alternative to url).
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Spotify album URL (e.g. https://open.spotify.com/album/0pgrg7phBbnwGJ2HBEl9EG).
                   type: string
@@ -101,10 +119,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -118,10 +136,16 @@ paths:
                           - type: 'null'
                           - additionalProperties: false
                             properties:
+                              artistName:
+                                description: Name of the primary artist.
+                                type: string
                               id:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
                                 x-anyapi-must-populate: true
+                              image:
+                                description: URL of the cover art image.
+                                type: string
                               label:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
@@ -140,11 +164,17 @@ paths:
                                 description: Populated whenever the provider has data for the entity.
                                 items:
                                   properties:
+                                    artistName:
+                                      description: Name of the primary artist.
+                                      type: string
                                     durationMs:
                                       type: integer
                                     name:
                                       type: string
                                     playcount:
+                                      type: integer
+                                    trackNumber:
+                                      description: Position of the track within the album.
                                       type: integer
                                     uri:
                                       type: string
@@ -164,6 +194,9 @@ paths:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
                                 x-anyapi-must-populate: true
+                              url:
+                                description: Canonical Spotify web URL, tracking query parameters stripped.
+                                type: string
                             required:
                             - id
                             - name
@@ -176,11 +209,17 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Spotify Album output
                       type: object
+                      x-anyapi-result-list: false
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -192,6 +231,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -267,7 +330,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -285,7 +348,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -309,7 +372,7 @@ paths:
         href: /api-reference/spotify/album
       x-payment-info:
         price:
-          amount: '0.002000'
+          amount: '0.001200'
           currency: USD
           mode: fixed
         protocols:
@@ -338,7 +401,7 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: '0.001000'
             mode: fixed
@@ -361,11 +424,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -385,7 +448,7 @@ paths:
       description: 'Fetch a Spotify artist''s discography (albums, singles, top tracks) and metadata by artist URL or ID.
 
 
-        **Price:** \$2.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
@@ -394,13 +457,13 @@ paths:
         **Catalog:** Spotify Artist pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Spotify endpoint.'
       operationId: spotify_artist
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -443,13 +506,31 @@ paths:
               example:
                 url: https://open.spotify.com/artist/3DiDSECUqqY1AuBP8qtaIa
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 id:
                   description: Spotify artist ID (alternative to url).
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Spotify artist URL (e.g. https://open.spotify.com/artist/3DiDSECUqqY1AuBP8qtaIa).
                   type: string
@@ -466,10 +547,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -491,6 +572,12 @@ paths:
                                       description: Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    image:
+                                      description: URL of the cover art image.
+                                      type: string
+                                    label:
+                                      description: Record label that released the album.
+                                      type: string
                                     name:
                                       description: Populated whenever the provider has data for the entity.
                                       type: string
@@ -505,6 +592,9 @@ paths:
                                       description: Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    url:
+                                      description: Canonical Spotify web URL, tracking query parameters stripped.
+                                      type: string
                                     year:
                                       description: Populated whenever the provider has data for the entity.
                                       type: integer
@@ -519,15 +609,45 @@ paths:
                                   type: object
                                 type: array
                                 x-anyapi-must-populate: true
+                              bio:
+                                description: Artist biography text.
+                                type: string
+                              followers:
+                                description: Number of Spotify followers the artist has.
+                                type: integer
+                              id:
+                                description: Spotify artist ID.
+                                type: string
+                              image:
+                                description: URL of the cover art image.
+                                type: string
+                              name:
+                                description: Artist display name.
+                                type: string
+                              popularity:
+                                description: Spotify popularity score for the artist, 0 to 100.
+                                type: integer
                               topTracks:
                                 description: Populated whenever the provider has data for the entity.
                                 items:
                                   properties:
+                                    artistName:
+                                      description: Name of the primary artist.
+                                      type: string
+                                    durationMs:
+                                      description: Length of the track in milliseconds.
+                                      type: integer
                                     id:
+                                      type: string
+                                    image:
+                                      description: URL of the cover art image.
                                       type: string
                                     name:
                                       type: string
                                     playcount:
+                                      type: integer
+                                    popularity:
+                                      description: Spotify popularity score for the track, 0 to 100.
                                       type: integer
                                     uri:
                                       type: string
@@ -539,17 +659,29 @@ paths:
                                   type: object
                                 type: array
                                 x-anyapi-must-populate: true
+                              url:
+                                description: Canonical Spotify web URL, tracking query parameters stripped.
+                                type: string
+                              verified:
+                                description: Whether the artist profile is verified on Spotify.
+                                type: boolean
                             required:
                             - albums
                             - topTracks
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Spotify Artist output
                       type: object
+                      x-anyapi-result-list: false
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -561,6 +693,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -636,7 +792,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -654,7 +810,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -678,7 +834,7 @@ paths:
         href: /api-reference/spotify/artist
       x-payment-info:
         price:
-          amount: '0.002000'
+          amount: '0.001200'
           currency: USD
           mode: fixed
         protocols:
@@ -707,7 +863,7 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: '0.001000'
             mode: fixed
@@ -730,11 +886,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -763,13 +919,13 @@ paths:
         **Catalog:** Spotify Play Count pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Spotify endpoint.'
       operationId: spotify_play_count
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -812,10 +968,28 @@ paths:
               example:
                 url: https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Spotify track, album, or artist URL to fetch stream counts for (e.g. https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp).
                   type: string
@@ -834,10 +1008,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -868,6 +1042,9 @@ paths:
                                       description: The Spotify entity ID. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    image:
+                                      description: URL of the cover art image.
+                                      type: string
                                     name:
                                       description: The track (or entity) name. Populated whenever the provider has data for the entity.
                                       type: string
@@ -876,6 +1053,15 @@ paths:
                                       description: Total number of streams/plays for the track. Populated whenever the provider has data for the entity.
                                       type: integer
                                       x-anyapi-must-populate: true
+                                    previewUrl:
+                                      description: URL of the 30-second audio preview.
+                                      type: string
+                                    releaseDate:
+                                      description: Release date as an ISO 8601 string.
+                                      type: string
+                                    trackNumber:
+                                      description: Position of the track within its album.
+                                      type: integer
                                     type:
                                       description: The Spotify entity type (e.g. "track").
                                       type: string
@@ -897,6 +1083,11 @@ paths:
                         found:
                           description: Whether the track/album/artist was found and returned play-count records.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -913,6 +1104,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -988,7 +1203,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1006,7 +1221,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1089,7 +1304,7 @@ paths:
             min: '0.000000'
             minimumUsd: null
             mode: dynamic
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1109,7 +1324,7 @@ paths:
       description: 'Fetch a Spotify podcast show''s name, publisher, description, rating, and topics by show URL or ID.
 
 
-        **Price:** \$2.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
@@ -1118,13 +1333,13 @@ paths:
         **Catalog:** Spotify Podcast pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Spotify endpoint.'
       operationId: spotify_podcast
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1167,13 +1382,31 @@ paths:
               example:
                 url: https://open.spotify.com/show/3mliji9352UAk3XnWElnDV
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 id:
                   description: Spotify podcast show ID (alternative to url).
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Spotify podcast show URL (e.g. https://open.spotify.com/show/3mliji9352UAk3XnWElnDV).
                   type: string
@@ -1190,10 +1423,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1216,6 +1449,9 @@ paths:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
                                 x-anyapi-must-populate: true
+                              image:
+                                description: URL of the cover art image.
+                                type: string
                               name:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
@@ -1230,6 +1466,9 @@ paths:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
                                 x-anyapi-must-populate: true
+                              url:
+                                description: Canonical Spotify web URL, tracking query parameters stripped.
+                                type: string
                             required:
                             - id
                             - name
@@ -1241,6 +1480,11 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1257,6 +1501,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1332,7 +1600,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1350,7 +1618,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1374,7 +1642,7 @@ paths:
         href: /api-reference/spotify/podcast
       x-payment-info:
         price:
-          amount: '0.002000'
+          amount: '0.001200'
           currency: USD
           mode: fixed
         protocols:
@@ -1403,7 +1671,7 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: '0.001000'
             mode: fixed
@@ -1426,11 +1694,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1450,7 +1718,7 @@ paths:
       description: 'List a Spotify podcast show''s episodes with titles, durations, descriptions, and release dates by show URL or ID.
 
 
-        **Price:** \$2.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
@@ -1459,13 +1727,13 @@ paths:
         **Catalog:** Spotify Podcast Episodes pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Spotify endpoint.'
       operationId: spotify_podcast_episodes
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1508,16 +1776,34 @@ paths:
               example:
                 url: https://open.spotify.com/show/4rOoJ6Egrf8K2IrywzwOMk
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 cursor:
                   description: Pagination cursor from a previous response for subsequent pages.
                   type: string
                 id:
                   description: Spotify podcast show ID (alternative to url).
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Spotify podcast show URL (e.g. https://open.spotify.com/show/4rOoJ6Egrf8K2IrywzwOMk).
                   type: string
@@ -1534,10 +1820,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1601,6 +1887,11 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1617,6 +1908,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1692,7 +2007,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1710,7 +2025,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1734,7 +2049,7 @@ paths:
         href: /api-reference/spotify/podcast-episodes
       x-payment-info:
         price:
-          amount: '0.002000'
+          amount: '0.001200'
           currency: USD
           mode: fixed
         protocols:
@@ -1763,7 +2078,7 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: '0.001000'
             mode: fixed
@@ -1786,11 +2101,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1810,7 +2125,7 @@ paths:
       description: 'Search Spotify for matching tracks, albums, artists, podcasts, and playlists by keyword.
 
 
-        **Price:** \$2.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
@@ -1819,13 +2134,13 @@ paths:
         **Catalog:** Spotify Search pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Spotify endpoint.'
       operationId: spotify_search
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1868,6 +2183,17 @@ paths:
               example:
                 query: my first million
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
@@ -1875,6 +2201,13 @@ paths:
                 query:
                   description: Search term (e.g. "my first million").
                   type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - query
               title: Spotify Search input
@@ -1890,10 +2223,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1911,9 +2244,18 @@ paths:
                                 description: Populated whenever the provider has data for the entity.
                                 items:
                                   properties:
+                                    artistName:
+                                      description: Name of the primary artist.
+                                      type: string
                                     id:
                                       type: string
+                                    image:
+                                      description: URL of the cover art image.
+                                      type: string
                                     name:
+                                      type: string
+                                    type:
+                                      description: Album type, for example ALBUM, SINGLE or COMPILATION.
                                       type: string
                                     uri:
                                       type: string
@@ -1953,9 +2295,15 @@ paths:
                                   properties:
                                     id:
                                       type: string
+                                    image:
+                                      description: URL of the cover art image.
+                                      type: string
                                     name:
                                       type: string
                                     publisher:
+                                      type: string
+                                    uri:
+                                      description: Spotify URI of the podcast show.
                                       type: string
                                   required:
                                   - id
@@ -1968,10 +2316,16 @@ paths:
                                 description: Populated whenever the provider has data for the entity.
                                 items:
                                   properties:
+                                    albumName:
+                                      description: Name of the album the track appears on.
+                                      type: string
                                     id:
                                       description: Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    image:
+                                      description: URL of the cover art image.
+                                      type: string
                                     name:
                                       description: Populated whenever the provider has data for the entity.
                                       type: string
@@ -1995,11 +2349,17 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Spotify Search output
                       type: object
+                      x-anyapi-result-list: false
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -2011,6 +2371,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -2086,7 +2470,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -2104,7 +2488,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -2128,7 +2512,7 @@ paths:
         href: /api-reference/spotify/search
       x-payment-info:
         price:
-          amount: '0.002000'
+          amount: '0.001200'
           currency: USD
           mode: fixed
         protocols:
@@ -2157,7 +2541,7 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: '0.001000'
             mode: fixed
@@ -2180,11 +2564,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -2204,7 +2588,7 @@ paths:
       description: 'Fetch a Spotify track''s play count, popularity, duration, and album details by track URL or ID.
 
 
-        **Price:** \$2.00 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$1.20 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
@@ -2213,13 +2597,13 @@ paths:
         **Catalog:** Spotify Track pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Spotify endpoint.'
       operationId: spotify_track
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -2262,13 +2646,31 @@ paths:
               example:
                 url: https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 id:
                   description: Spotify track ID (alternative to url).
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Spotify track URL (e.g. https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT).
                   type: string
@@ -2285,10 +2687,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -2301,6 +2703,12 @@ paths:
                           oneOf:
                           - type: 'null'
                           - properties:
+                              albumName:
+                                description: Name of the album the track appears on.
+                                type: string
+                              artistName:
+                                description: Name of the primary artist.
+                                type: string
                               durationMs:
                                 description: Populated whenever the provider has data for the entity.
                                 type: integer
@@ -2309,6 +2717,9 @@ paths:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
                                 x-anyapi-must-populate: true
+                              image:
+                                description: URL of the cover art image.
+                                type: string
                               name:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
@@ -2317,6 +2728,9 @@ paths:
                                 type: integer
                               popularity:
                                 type: integer
+                              releaseDate:
+                                description: Album release date as an ISO 8601 string.
+                                type: string
                               shareUrl:
                                 description: Populated whenever the provider has data for the entity.
                                 type: string
@@ -2341,6 +2755,11 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -2357,6 +2776,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -2432,7 +2875,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -2450,7 +2893,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -2474,7 +2917,7 @@ paths:
         href: /api-reference/spotify/track
       x-payment-info:
         price:
-          amount: '0.002000'
+          amount: '0.001200'
           currency: USD
           mode: fixed
         protocols:
@@ -2503,7 +2946,7 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: '0.001000'
             mode: fixed
@@ -2526,11 +2969,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
-            amount: '0.002000'
+            amount: '0.001200'
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -2547,35 +2990,22 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
+    Error:
       properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
         error:
-          const: trial_cap_reached
+          description: Customer-safe error message.
           type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
       required:
       - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
       type: object
     Payment:
       properties:
@@ -2596,31 +3026,6 @@ components:
       - settlementState
       - costUsd
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -2653,6 +3058,44 @@ components:
       - grantType
       - interval
       - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

@@ -29,13 +29,13 @@ paths:
         **Catalog:** Douyin Profile pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Douyin endpoint.'
       operationId: douyin_profile
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -72,12 +72,23 @@ paths:
         content:
           application/json:
             example:
-              secUserId: MS4wLjABAAAAW9FWcqS7RdQAWPd2AA5fL_ilmqsIFUCQ_Iym6Yh9_cUa6ZRqVLjVQSUjlHrfXY1Y
+              secUserId: MS4wLjABAAAANXSltcLCzDGmdNFI2Q_QixVTr67NiYzjKOIP5s03CAE
             schema:
               additionalProperties: false
               example:
-                secUserId: MS4wLjABAAAAW9FWcqS7RdQAWPd2AA5fL_ilmqsIFUCQ_Iym6Yh9_cUa6ZRqVLjVQSUjlHrfXY1Y
+                secUserId: MS4wLjABAAAANXSltcLCzDGmdNFI2Q_QixVTr67NiYzjKOIP5s03CAE
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
@@ -86,6 +97,13 @@ paths:
                   description: Douyin sec_user_id for the public account.
                   minLength: 1
                   type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - secUserId
               title: Douyin profile input
@@ -101,10 +119,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -164,6 +182,11 @@ paths:
                         found:
                           description: True when the profile was found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -180,6 +203,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -255,7 +302,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -273,7 +320,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -353,7 +400,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -382,13 +429,13 @@ paths:
         **Catalog:** Douyin Video Search pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Douyin endpoint.'
       operationId: douyin_search_videos
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -428,15 +475,19 @@ paths:
               duration: '0'
               publishedWithin: 0
               query: 机器人
-              sort: 0
+              sort: relevance
             schema:
               additionalProperties: false
               example:
                 duration: '0'
                 publishedWithin: 0
                 query: 机器人
-                sort: 0
+                sort: relevance
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 backtrace:
                   description: Backtrace token returned by the previous page.
                   type: string
@@ -453,6 +504,13 @@ paths:
                   - 1-5
                   - 5-10000
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
@@ -480,22 +538,29 @@ paths:
                   description: Search ID returned by the previous page.
                   type: string
                 sort:
-                  default: 0
-                  description: Sort order. Use the canonical JSON integer 0 for comprehensive, 1 for most liked, or 2 for newest; legacy numeric strings remain accepted.
+                  default: relevance
+                  description: 'Sort order: relevance (Douyin''s comprehensive ranking), most-liked, date-posted.'
                   enum:
-                  - 0
-                  - 1
-                  - 2
-                  - '0'
-                  - '1'
-                  - '2'
-                  type:
-                  - integer
-                  - string
+                  - relevance
+                  - most-liked
+                  - date-posted
+                  type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - query
               title: Douyin video search input
               type: object
+              x-anyapi-compat-values:
+                sort:
+                  '0': relevance
+                  '1': most-liked
+                  '2': date-posted
         required: true
       responses:
         '200':
@@ -507,10 +572,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -543,14 +608,23 @@ paths:
                                 description: Normalized matching videos. Populated whenever the provider has data for the entity.
                                 items:
                                   properties:
+                                    authorImage:
+                                      description: Author's avatar image URL.
+                                      type: string
                                     authorNickname:
                                       description: Author display name. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    authorUniqueId:
+                                      description: Author's Douyin handle (unique id).
+                                      type: string
                                     authorUserId:
                                       description: Author user identifier. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    authorVerified:
+                                      description: Whether the author's account is verified.
+                                      type: boolean
                                     caption:
                                       description: Video caption. Populated whenever the provider has data for the entity.
                                       type: string
@@ -562,6 +636,12 @@ paths:
                                       description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. Populated whenever the provider has data for the entity.
                                       type: number
                                       x-anyapi-must-populate: true
+                                    durationMs:
+                                      description: Video duration in milliseconds.
+                                      type: integer
+                                    height:
+                                      description: Pixel height of the video.
+                                      type: integer
                                     id:
                                       description: Video identifier. Populated whenever the provider has data for the entity.
                                       type: string
@@ -573,6 +653,9 @@ paths:
                                     likes:
                                       description: Like count.
                                       type: integer
+                                    region:
+                                      description: Two-letter region code the video was published from.
+                                      type: string
                                     saves:
                                       description: Save count.
                                       type: integer
@@ -584,8 +667,14 @@ paths:
                                       format: uri
                                       type: string
                                       x-anyapi-must-populate: true
+                                    videoUrl:
+                                      description: Playable video URL. The query string carries required access parameters, so keep it intact.
+                                      type: string
                                     views:
                                       description: Play count.
+                                      type: integer
+                                    width:
+                                      description: Pixel width of the video.
                                       type: integer
                                   required:
                                   - id
@@ -602,6 +691,11 @@ paths:
                         found:
                           description: True when matching videos were found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -618,6 +712,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -693,7 +811,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -711,7 +829,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -791,7 +909,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -820,13 +938,13 @@ paths:
         **Catalog:** Douyin User Posts pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Douyin endpoint.'
       operationId: douyin_user_posts
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -865,17 +983,28 @@ paths:
             example:
               limit: 20
               secUserId: MS4wLjABAAAANXSltcLCzDGmdNFI2Q_QixVTr67NiYzjKOIP5s03CAE
-              sort: 0
+              sort: newest
             schema:
               additionalProperties: false
               example:
                 limit: 20
                 secUserId: MS4wLjABAAAANXSltcLCzDGmdNFI2Q_QixVTr67NiYzjKOIP5s03CAE
-                sort: 0
+                sort: newest
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 cursor:
                   description: Pagination cursor from the previous response; omit for the first page.
                   type: integer
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 limit:
                   default: 20
                   description: Requested page size. Values up to 20 are recommended.
@@ -889,20 +1018,27 @@ paths:
                   minLength: 1
                   type: string
                 sort:
-                  default: 0
-                  description: Post order. Use the canonical JSON integer 0 for newest or 1 for most popular; legacy numeric strings remain accepted.
+                  default: newest
+                  description: 'Post order: newest, most-popular.'
                   enum:
-                  - 0
-                  - 1
-                  - '0'
-                  - '1'
-                  type:
-                  - integer
-                  - string
+                  - newest
+                  - most-popular
+                  type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - secUserId
               title: Douyin user posts input
               type: object
+              x-anyapi-compat-values:
+                sort:
+                  '0': newest
+                  '1': most-popular
         required: true
       responses:
         '200':
@@ -914,10 +1050,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -944,6 +1080,9 @@ paths:
                                 description: Normalized Douyin posts. Populated whenever the provider has data for the entity.
                                 items:
                                   properties:
+                                    authorImage:
+                                      description: Author's avatar image URL.
+                                      type: string
                                     authorNickname:
                                       description: Author display name. Populated whenever the provider has data for the entity.
                                       type: string
@@ -952,10 +1091,16 @@ paths:
                                       description: Author sec_user_id. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    authorUniqueId:
+                                      description: Author's Douyin handle (unique id).
+                                      type: string
                                     authorUserId:
                                       description: Author user identifier. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    authorVerified:
+                                      description: Whether the author's account is verified.
+                                      type: boolean
                                     caption:
                                       description: Post caption. Populated whenever the provider has data for the entity.
                                       type: string
@@ -967,6 +1112,12 @@ paths:
                                       description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. Populated whenever the provider has data for the entity.
                                       type: number
                                       x-anyapi-must-populate: true
+                                    durationMs:
+                                      description: Media duration in milliseconds.
+                                      type: integer
+                                    height:
+                                      description: Pixel height of the media.
+                                      type: integer
                                     id:
                                       description: Post identifier. Populated whenever the provider has data for the entity.
                                       type: string
@@ -978,6 +1129,9 @@ paths:
                                     likes:
                                       description: Like count.
                                       type: integer
+                                    region:
+                                      description: Two-letter region code the post was published from.
+                                      type: string
                                     saves:
                                       description: Save count.
                                       type: integer
@@ -992,6 +1146,9 @@ paths:
                                     views:
                                       description: Play count.
                                       type: integer
+                                    width:
+                                      description: Pixel width of the media.
+                                      type: integer
                                   required:
                                   - id
                                   type: object
@@ -1005,6 +1162,11 @@ paths:
                         found:
                           description: True when posts were found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1021,6 +1183,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1096,7 +1282,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1114,7 +1300,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1194,7 +1380,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1223,13 +1409,13 @@ paths:
         **Catalog:** Douyin Video pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Douyin endpoint.'
       operationId: douyin_video
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1272,10 +1458,28 @@ paths:
               example:
                 url: https://www.douyin.com/video/6894784055775071503
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: Public Douyin video share URL.
                   format: uri
@@ -1295,10 +1499,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1312,6 +1516,9 @@ paths:
                           oneOf:
                           - type: 'null'
                           - properties:
+                              authorImage:
+                                description: Author's avatar image URL.
+                                type: string
                               authorNickname:
                                 description: Author display name. Populated whenever the provider has data for the entity.
                                 type: string
@@ -1320,10 +1527,16 @@ paths:
                                 description: Author sec_user_id. Populated whenever the provider has data for the entity.
                                 type: string
                                 x-anyapi-must-populate: true
+                              authorUniqueId:
+                                description: Author's Douyin handle (unique id).
+                                type: string
                               authorUserId:
                                 description: Author user identifier. Populated whenever the provider has data for the entity.
                                 type: string
                                 x-anyapi-must-populate: true
+                              authorVerified:
+                                description: Whether the author's account is verified.
+                                type: boolean
                               caption:
                                 description: Video caption. Populated whenever the provider has data for the entity.
                                 type: string
@@ -1338,6 +1551,9 @@ paths:
                               durationMs:
                                 description: Video duration in milliseconds.
                                 type: integer
+                              height:
+                                description: Pixel height of the video.
+                                type: integer
                               id:
                                 description: Video identifier. Populated whenever the provider has data for the entity.
                                 type: string
@@ -1349,6 +1565,9 @@ paths:
                               likes:
                                 description: Like count.
                                 type: integer
+                              region:
+                                description: Two-letter region code the video was published from.
+                                type: string
                               saves:
                                 description: Save count.
                                 type: integer
@@ -1360,8 +1579,14 @@ paths:
                                 format: uri
                                 type: string
                                 x-anyapi-must-populate: true
+                              videoUrl:
+                                description: Playable video URL. The query string carries required access parameters, so keep it intact.
+                                type: string
                               views:
                                 description: Play count.
+                                type: integer
+                              width:
+                                description: Pixel width of the video.
                                 type: integer
                             required:
                             - id
@@ -1369,6 +1594,11 @@ paths:
                         found:
                           description: True when the video was found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1385,6 +1615,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1460,7 +1714,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1478,7 +1732,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1558,7 +1812,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1587,13 +1841,13 @@ paths:
         **Catalog:** Douyin Video Comments pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Douyin endpoint.'
       operationId: douyin_video_comments
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1636,14 +1890,32 @@ paths:
               example:
                 videoId: '7448118827402972455'
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 cursor:
                   description: Pagination cursor from the previous response; omit for the first page.
                   minimum: 0
                   type: integer
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 videoId:
                   description: Douyin aweme_id for the video.
                   minLength: 1
@@ -1663,10 +1935,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1755,6 +2027,11 @@ paths:
                         found:
                           description: True when comments were found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1771,6 +2048,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1846,7 +2147,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1864,7 +2165,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1944,7 +2245,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1961,35 +2262,22 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
+    Error:
       properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
         error:
-          const: trial_cap_reached
+          description: Customer-safe error message.
           type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
       required:
       - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
       type: object
     Payment:
       properties:
@@ -2010,31 +2298,6 @@ components:
       - settlementState
       - costUsd
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -2067,6 +2330,44 @@ components:
       - grantType
       - interval
       - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

@@ -29,13 +29,13 @@ paths:
         **Catalog:** Email Verification - Allegrow pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Email_verification endpoint.'
       operationId: email_verification_allegrow
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -78,14 +78,32 @@ paths:
               example:
                 email: tim@apollo.io
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 email:
                   description: Email address to validate.
                   format: email
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - email
               title: Email Verification - Allegrow input
@@ -101,10 +119,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -120,31 +138,47 @@ paths:
                           - properties:
                               allegrowStatus:
                                 description: The Allegrow dataset's own verdict field, returned verbatim as the source spells it (safe in the captured response). It duplicates status in the same response and is not remapped into the good/risky/bad vocabulary email.verify uses.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               domain:
                                 description: Email domain.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               email:
                                 description: Validated email address.
                                 format: email
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               isCatchAll:
                                 description: Whether the domain accepts mail for arbitrary recipients.
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               isRoleAccount:
                                 description: Whether the mailbox appears to be a role account.
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               mxProvider:
                                 description: Detected mail provider.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               mxRecords:
                                 description: MX record hosts published by the email domain.
                                 items:
                                   type: string
-                                type: array
+                                type:
+                                - array
+                                - 'null'
                               providerRequestId:
                                 description: The source's own identifier for this validation, surfaced so a result can be traced back to the record the source created.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               status:
                                 description: Deliverability verdict; negative verdicts are successful billable results.
                                 enum:
@@ -156,13 +190,20 @@ paths:
                                 - spamtrap
                                 - more_time_required
                                 - missing_email
-                                type: string
+                                - null
+                                type:
+                                - string
+                                - 'null'
                               subStatus:
                                 description: More specific validation result when available.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               validatedUtc:
                                 description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds.
-                                type: number
+                                type:
+                                - number
+                                - 'null'
                             required:
                             - email
                             - status
@@ -170,11 +211,18 @@ paths:
                         found:
                           description: Whether the source returned a completed validation result, including negative verdicts.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Email Verification - Allegrow output
                       type: object
+                      x-anyapi-result-list: false
+                      x-anyapi-serve-imperfect-records: true
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -186,6 +234,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -261,7 +333,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -279,7 +351,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -359,7 +431,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -388,13 +460,13 @@ paths:
         **Catalog:** Email Verification - BounceBan pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Email_verification endpoint.'
       operationId: email_verification_bounceban
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -445,11 +517,22 @@ paths:
                 email: tim@apollo.io
                 mode: regular
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 disableCatchallVerify:
                   type: boolean
                 email:
                   format: email
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 mode:
                   enum:
                   - regular
@@ -459,6 +542,13 @@ paths:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - email
               title: Email Verification - BounceBan input
@@ -474,10 +564,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -491,43 +581,74 @@ paths:
                           - type: 'null'
                           - properties:
                               email:
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               isCatchAll:
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               isDisposable:
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               isFree:
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               isRole:
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               mode:
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               mxRecords:
                                 items:
                                   type: string
-                                type: array
+                                type:
+                                - array
+                                - 'null'
                               reason:
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               result:
                                 description: Deliverability verdict; negative verdicts are successful results.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               score:
-                                type: number
+                                type:
+                                - number
+                                - 'null'
                               smtpProvider:
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               verifiedAt:
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                             required:
                             - email
                             - result
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Email Verification - BounceBan output
                       type: object
+                      x-anyapi-result-list: false
+                      x-anyapi-serve-imperfect-records: true
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -539,6 +660,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -601,7 +746,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -619,7 +764,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -658,13 +803,13 @@ paths:
         **Catalog:** Email Verification - Icypeas pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Email_verification endpoint.'
       operationId: email_verification_icypeas
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -707,13 +852,31 @@ paths:
               example:
                 email: support@stripe.com
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 email:
                   format: email
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - email
               title: Email Verification - Icypeas input
@@ -729,10 +892,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -748,70 +911,109 @@ paths:
                           - properties:
                               certainty:
                                 description: Confidence rating for the address, returned verbatim as the source spells it (ultra_sure in the captured response). It is not remapped to another verdict vocabulary.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               createdUtc:
                                 description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds.
-                                type: number
+                                type:
+                                - number
+                                - 'null'
                               email:
                                 description: The verified email address as the source returned it.
                                 format: email
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               firstname:
                                 description: First name carried by the source's scan record. Present only when that record holds identity data, which the verification path usually does not.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               fullname:
                                 description: Full name carried by the source's scan record. Present only when that record holds identity data, which the verification path usually does not.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               gender:
                                 description: Gender carried by the source's scan record, returned verbatim. Present only when that record holds identity data, which the verification path usually does not; the source's UNKNOWN sentinel is reported as absent.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               lastname:
                                 description: Last name carried by the source's scan record. Present only when that record holds identity data, which the verification path usually does not.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               linkedinUrl:
                                 description: LinkedIn profile URL carried by the source's scan record. Present only when that record holds identity data, which the verification path usually does not.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               modifiedUtc:
                                 description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds.
-                                type: number
+                                type:
+                                - number
+                                - 'null'
                               mxProvider:
                                 description: Mail provider detected from the address domain's MX records.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               mxRecords:
                                 description: MX record hosts published by the address domain.
                                 items:
                                   type: string
-                                type: array
+                                type:
+                                - array
+                                - 'null'
                               phones:
                                 description: Phone numbers carried by the source's scan record, passed through in whatever shape the source returns them. Empty in the captured response and absent when the source holds none, so this field is not type-constrained.
                               saasServices:
                                 description: SaaS services carried by the source's scan record, passed through in whatever shape the source returns them. Empty in the captured response and absent when the source holds none, so this field is not type-constrained.
                               scanId:
                                 description: The source's own identifier for the scan record behind this verification, surfaced so a result can be traced back to it at the source.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               scanName:
                                 description: The source's own label for the kind of scan record it created, returned verbatim (__icypeas__individual in the captured response). It is not a person's name.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               scanOrder:
                                 description: Position the source assigned to this record within the scan it belongs to; 0 for a single-address verification.
-                                type: integer
+                                type:
+                                - integer
+                                - 'null'
                               scanUser:
                                 description: The source's own identifier for the account that ran the scan.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               status:
                                 description: Scan outcome for the address, returned verbatim as the source spells it (FOUND in the captured response; the scan also reports NOT_FOUND). This is not the good/risky/bad vocabulary used by email.verify.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                             required:
                             - status
                             type: object
                         found:
                           description: Whether the source returned a completed verification. A negative verdict is a successful, billable result.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Email Verification - Icypeas output
                       type: object
+                      x-anyapi-result-list: false
+                      x-anyapi-serve-imperfect-records: true
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -823,6 +1025,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -898,7 +1124,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -916,7 +1142,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -996,7 +1222,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1025,13 +1251,13 @@ paths:
         **Catalog:** Email Verification - ZeroBounce pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Email_verification endpoint.'
       operationId: email_verification_zerobounce
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1074,10 +1300,21 @@ paths:
               example:
                 email: tim@apollo.io
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 email:
                   description: Email address to validate.
                   format: email
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 ipAddress:
                   description: IP address the address signed up from. ZeroBounce uses it to add the geographic fields to the answer.
                   type: string
@@ -1085,6 +1322,13 @@ paths:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - email
               title: Email Verification - ZeroBounce input
@@ -1100,10 +1344,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1119,64 +1363,104 @@ paths:
                           - properties:
                               account:
                                 description: Local part of the address, before the @.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               catchallDomain:
                                 description: True when the domain accepts mail to any local part, so no address on it can be individually confirmed.
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               city:
                                 description: City from the supplied signup IP.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               country:
                                 description: Country from the supplied signup IP.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               didYouMean:
                                 description: Corrected address when ZeroBounce spots a likely typo.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               domain:
                                 description: Domain part of the address.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               domainAgeDays:
                                 description: How long the domain has been registered, in days.
-                                type: integer
+                                type:
+                                - integer
+                                - 'null'
                               email:
                                 description: The address that was validated.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               firstName:
                                 description: First name ZeroBounce associates with the address.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               freeEmail:
                                 description: True for a free consumer mailbox such as gmail.com.
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               gender:
                                 description: Gender ZeroBounce associates with the address.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               lastName:
                                 description: Last name ZeroBounce associates with the address.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               mxFound:
                                 description: True when the domain publishes MX records.
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                               mxRecord:
                                 description: The domain's primary MX host.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               processedUtc:
                                 description: UTC epoch timestamp in seconds (Unix time) ZeroBounce ran the check. Multiply by 1000 for a JS Date in milliseconds.
-                                type: number
+                                type:
+                                - number
+                                - 'null'
                               region:
                                 description: Region from the supplied signup IP.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               smtpProvider:
                                 description: Mailbox provider behind the domain, e.g. g-suite.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               status:
                                 description: 'Deliverability verdict: valid, invalid, catch-all, unknown, spamtrap, abuse or do_not_mail.'
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               subStatus:
                                 description: Why that verdict was reached, e.g. mailbox_not_found, role_based, disposable.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               zipcode:
                                 description: Postal code from the supplied signup IP.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                             required:
                             - email
                             - status
@@ -1184,11 +1468,17 @@ paths:
                         found:
                           description: False when ZeroBounce returned no answer for the request.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Email Verification - ZeroBounce output
                       type: object
+                      x-anyapi-serve-imperfect-records: true
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -1200,6 +1490,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1275,7 +1589,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1293,7 +1607,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1373,7 +1687,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1402,13 +1716,13 @@ paths:
         **Catalog:** Email Activity - ZeroBounce pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Email_verification endpoint.'
       operationId: email_verification_zerobounce_activity
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1451,14 +1765,32 @@ paths:
               example:
                 email: dshah@hubspot.com
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 email:
                   description: Email address to check for activity.
                   format: email
                   type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - email
               title: Email Activity - ZeroBounce input
@@ -1474,10 +1806,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1493,16 +1825,24 @@ paths:
                           - properties:
                               activeInDays:
                                 description: How recently the address was active, in days. ZeroBounce buckets this rather than giving an exact figure.
-                                type: integer
+                                type:
+                                - integer
+                                - 'null'
                               email:
                                 description: The address that was checked.
-                                type: string
+                                type:
+                                - string
+                                - 'null'
                               firstSeenUtc:
                                 description: UTC epoch timestamp in seconds (Unix time) ZeroBounce first saw activity from the address. Multiply by 1000 for a JS Date in milliseconds.
-                                type: number
+                                type:
+                                - number
+                                - 'null'
                               hasActivity:
                                 description: True when ZeroBounce has seen engagement from this address.
-                                type: boolean
+                                type:
+                                - boolean
+                                - 'null'
                             required:
                             - email
                             - hasActivity
@@ -1510,11 +1850,17 @@ paths:
                         found:
                           description: False when ZeroBounce returned no answer for the request.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Email Activity - ZeroBounce output
                       type: object
+                      x-anyapi-serve-imperfect-records: true
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -1526,6 +1872,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1601,7 +1971,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1619,7 +1989,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1699,7 +2069,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1716,55 +2086,6 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
-      properties:
-        error:
-          const: trial_cap_reached
-          type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
-          type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
-      required:
-      - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
     Error:
       properties:
         code:
@@ -1781,47 +2102,6 @@ components:
           type: string
       required:
       - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
-    DeviceUpgrade:
-      properties:
-        deviceCode:
-          type: string
-        expiresIn:
-          minimum: 0
-          type: integer
-        grantType:
-          type: string
-        interval:
-          minimum: 1
-          type: integer
-        tokenEndpoint:
-          format: uri
-          type: string
-        userCode:
-          type: string
-        verificationUri:
-          format: uri
-          type: string
-        verificationUriComplete:
-          format: uri
-          type: string
-      required:
-      - verificationUriComplete
-      - verificationUri
-      - userCode
-      - deviceCode
-      - tokenEndpoint
-      - grantType
-      - interval
-      - expiresIn
       type: object
     RequestSnapshot:
       properties:
@@ -1850,13 +2130,13 @@ components:
               description: USD charged on the ORIGINAL run, echoed for envelope parity; this re-read is free.
               type: number
             items:
-              description: Number of result rows returned by the original run.
+              description: Number of result rows returned by the original run; an API that returns one record counts it as one row.
               type: integer
             jqError:
               description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
               type: string
             output:
-              description: The normalized result (`{found, data}` by default), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
+              description: The normalized result (`{found, data}` by default, plus `reason` when `found` is false), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
             provider:
               description: Always "AnyAPI".
               type: string
@@ -1866,6 +2146,30 @@ components:
             resultId:
               description: The id you requested, echoed so you can keep re-reading the same cached result.
               type: string
+            source:
+              description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+              properties:
+                artworkKey:
+                  description: Key for this source's artwork.
+                  type: string
+                id:
+                  description: Stable identifier for this source.
+                  type: string
+                kind:
+                  description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                  enum:
+                  - anonymous
+                  - brand
+                  type: string
+                name:
+                  description: Display name for this source.
+                  type: string
+              required:
+              - id
+              - name
+              - kind
+              - artworkKey
+              type: object
           required:
           - output
           - provider
@@ -1912,6 +2216,96 @@ components:
       - sku
       - status
       - createdAt
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    DeviceUpgrade:
+      properties:
+        deviceCode:
+          type: string
+        expiresIn:
+          minimum: 0
+          type: integer
+        grantType:
+          type: string
+        interval:
+          minimum: 1
+          type: integer
+        tokenEndpoint:
+          format: uri
+          type: string
+        userCode:
+          type: string
+        verificationUri:
+          format: uri
+          type: string
+        verificationUriComplete:
+          format: uri
+          type: string
+      required:
+      - verificationUriComplete
+      - verificationUri
+      - userCode
+      - deviceCode
+      - tokenEndpoint
+      - grantType
+      - interval
+      - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

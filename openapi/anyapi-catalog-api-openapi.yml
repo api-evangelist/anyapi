@@ -110,29 +110,6 @@ paths:
       - Catalog
 components:
   schemas:
-    DiscoverySource:
-      properties:
-        artworkKey:
-          description: Key for this source's artwork.
-          type: string
-        id:
-          description: Stable identifier for this source.
-          type: string
-        kind:
-          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
-          enum:
-          - anonymous
-          - brand
-          type: string
-        name:
-          description: Display name for this source.
-          type: string
-      required:
-      - id
-      - name
-      - kind
-      - artworkKey
-      type: object
     CatalogSearchResult:
       properties:
         category:
@@ -199,86 +176,6 @@ components:
       - platformId
       - relevance
       type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
-    DiscoveryHighlightField:
-      properties:
-        path:
-          description: JSON path of the output field inside this API's outputSchema.
-          type: string
-        type:
-          description: JSON type of that field.
-          type: string
-        why:
-          description: The field's own schema description. Absent when the schema gives none.
-          type: string
-      required:
-      - path
-      - type
-      type: object
-    DiscoveryOffer:
-      properties:
-        baseUsd:
-          description: 'Linear offers only: USD charged for the call before per-unit billing.'
-          type: number
-        maxPer1kUsd:
-          description: The same maximum in the per-1,000-request denomination AnyAPI quotes customers in. It is published rather than left to the client, so display this figure instead of scaling a price yourself.
-          type: number
-        maxUsd:
-          description: The most one request on this offer can be billed, in USD.
-          type: number
-        model:
-          description: Pricing model. A flat offer is one price per request; a linear offer also carries baseUsd and perUnitUsd.
-          enum:
-          - flat
-          - linear
-          type: string
-        perUnitUsd:
-          description: 'Linear offers only: USD charged for each billable unit inside the call.'
-          type: number
-        unit:
-          description: The billable unit. A flat offer always publishes "request".
-          type: string
-      required:
-      - model
-      - unit
-      - maxUsd
-      - maxPer1kUsd
-      type: object
-    DiscoveryPricing:
-      properties:
-        failoverMaxPer1kUsd:
-          description: failoverMaxUsd in the per-1,000-request denomination.
-          type: number
-        failoverMaxUsd:
-          description: The greatest customer-price maximum across those same sources, in USD.
-          type: number
-        from:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
-      required:
-      - from
-      - failoverMaxUsd
-      - failoverMaxPer1kUsd
-      type: object
     Error:
       properties:
         code:
@@ -296,8 +193,34 @@ components:
       required:
       - error
       type: object
+    CatalogSourceOffer:
+      properties:
+        fields:
+          description: The output fields this source returns, so you can see before calling which requireFields combinations one source can serve together. Absent when the set is not known for the source.
+          items:
+            type: string
+          type: array
+        health:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySourceHealth'
+          description: Measured health for this source. Absent when it has too little traffic to publish.
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: This source's own customer price.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySource'
+          description: This source's public identity.
+      required:
+      - pricing
+      - source
+      type: object
     DiscoverySourceHealth:
       properties:
+        blockedPct:
+          description: Share of this source's attempts the target site refused, as a percentage. Left out of uptimePct. Sent only for web.scrape, where later sources see only the pages earlier ones failed on.
+          type: number
         latencyP50Ms:
           description: Median successful service time for this source, in milliseconds.
           type: integer
@@ -367,6 +290,11 @@ components:
         name:
           description: Display name.
           type: string
+        notServingSources:
+          description: 'Sources that belong to this API but are not being called right now: each served until it was withdrawn after failures, and each returns on its own once it passes again. Absent when every source is serving. Never merge these into the list above: the prices here cannot be charged and a failed call is not retried on them.'
+          items:
+            $ref: '#/components/schemas/CatalogSourceOffer'
+          type: array
         path:
           description: 'Concrete gateway path for this API. Gateway authority: use it rather than rebuilding a route from the slug.'
           type: string
@@ -402,6 +330,132 @@ components:
       - tryEligible
       - failover
       type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
+      type: object
+    DiscoveryHighlightField:
+      properties:
+        path:
+          description: JSON path of the output field inside this API's outputSchema.
+          type: string
+        type:
+          description: JSON type of that field.
+          type: string
+        why:
+          description: The field's own schema description. Absent when the schema gives none.
+          type: string
+      required:
+      - path
+      - type
+      type: object
+    DiscoverySource:
+      properties:
+        artworkKey:
+          description: Key for this source's artwork.
+          type: string
+        id:
+          description: Stable identifier for this source.
+          type: string
+        kind:
+          description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+          enum:
+          - anonymous
+          - brand
+          type: string
+        name:
+          description: Display name for this source.
+          type: string
+      required:
+      - id
+      - name
+      - kind
+      - artworkKey
+      type: object
+    DiscoveryPricing:
+      properties:
+        failoverMaxPer1kUsd:
+          description: failoverMaxUsd in the per-1,000-request denomination.
+          type: number
+        failoverMaxUsd:
+          description: The greatest customer-price maximum across those same sources, in USD, including every optional extra a source sells.
+          type: number
+        from:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
+      required:
+      - from
+      - failoverMaxUsd
+      - failoverMaxPer1kUsd
+      type: object
+    DiscoveryOffer:
+      properties:
+        addons:
+          description: 'Optional extras this offer sells, absent when it sells none. Each is switched on by a field in the request, so its price is known before the call and never moves. maxUsd bounds the metered charge alone: an extra the caller asked for is billed ON TOP of it, so the most one request can cost is maxUsd plus the extras it switched on.'
+          items:
+            properties:
+              field:
+                description: The input field that switches it on.
+                type: string
+              id:
+                description: Stable identifier for the extra.
+                type: string
+              label:
+                description: What the money buys, in the customer's words.
+                type: string
+              usd:
+                description: USD added to the request when that field is set.
+                type: number
+            required:
+            - id
+            - label
+            - field
+            - usd
+            type: object
+          type: array
+        baseUsd:
+          description: 'Linear offers only: USD charged for the call before per-unit billing.'
+          type: number
+        maxPer1kUsd:
+          description: The same maximum in the per-1,000-request denomination AnyAPI quotes customers in. It is published rather than left to the client, so display this figure instead of scaling a price yourself.
+          type: number
+        maxUsd:
+          description: The most one request on this offer can be billed, in USD.
+          type: number
+        model:
+          description: Pricing model. A flat offer is one price per request; a linear offer also carries baseUsd and perUnitUsd.
+          enum:
+          - flat
+          - linear
+          type: string
+        perUnitUsd:
+          description: 'Linear offers only: USD charged for each billable unit inside the call.'
+          type: number
+        unit:
+          description: The billable unit. A flat offer always publishes "request".
+          type: string
+      required:
+      - model
+      - unit
+      - maxUsd
+      - maxPer1kUsd
+      type: object
     DiscoveryExecution:
       properties:
         mode:
@@ -412,24 +466,6 @@ components:
           type: string
       required:
       - mode
-      type: object
-    CatalogSourceOffer:
-      properties:
-        health:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySourceHealth'
-          description: Measured health for this source. Absent when it has too little traffic to publish.
-        pricing:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: This source's own customer price.
-        source:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySource'
-          description: This source's public identity.
-      required:
-      - pricing
-      - source
       type: object
   securitySchemes:
     apiKeyAuth:

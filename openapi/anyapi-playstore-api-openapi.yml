@@ -15,27 +15,27 @@ tags:
 - name: playstore
   x-group: Playstore
 paths:
-  /v1/run/playstore.reviews:
+  /v1/run/playstore.app:
     post:
-      description: 'Fetch Google Play reviews for any Android app by package name or store URL: ratings, review text, dates, and helpfulness votes.
+      description: 'Get an Android app''s Google Play listing by package name, in any store country: title, developer and contact details, rating, ratings count, installs, price, description, screenshots, and more.
 
 
-        **Price:** billed per result - \$0.13 per 1,000 results, capped at \$12.10 per 1,000 requests.
+        **Price:** \$0.85 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
-        **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+        **Routing:** 3 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
-        **Catalog:** Google Play Reviews pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Playstore endpoint.'
-      operationId: playstore_reviews
+        **Catalog:** Google Play App Details pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Playstore endpoint.'
+      operationId: playstore_app
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -72,64 +72,78 @@ paths:
         content:
           application/json:
             example:
-              appId: com.whatsapp
-              limit: 3
+              appId: com.playdigious.deadcells.mobile
+              country: us
             schema:
               additionalProperties: false
               example:
-                appId: com.whatsapp
-                limit: 3
+                appId: com.playdigious.deadcells.mobile
+                country: us
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 appId:
-                  description: Android app package name or full Google Play store URL (e.g. com.supercell.brawlstars).
+                  description: Android app package name, the id parameter of the app's Google Play URL (e.g. com.supercell.brawlstars).
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$
                   type: string
-                appVersion:
-                  description: Only return reviews left on these app versions (e.g. ["2.24.1", "2.24.2"]).
+                country:
+                  default: us
+                  description: Two-letter Google Play store country code to read the listing from (e.g. gb); price and currency follow that country. Text is returned in English.
+                  type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
                   items:
+                    minLength: 1
                     type: string
                   type: array
-                deviceType:
-                  description: Only return reviews from this device type (e.g. "tablet"); omit for the provider default.
-                  enum:
-                  - mobile
-                  - tablet
-                  - chromebook
-                  type: string
-                endDate:
-                  description: Only return reviews on or before this date, inclusive, in YYYY-MM-DD format (e.g. 2026-06-30).
-                  type: string
-                keywords:
-                  description: Only return reviews whose text contains one of these keywords (e.g. ["crash", "login"]).
-                  items:
-                    type: string
-                  type: array
-                languages:
-                  description: Only return reviews in these ISO 639-1 languages (e.g. ["en", "es"]).
-                  items:
-                    type: string
-                  type: array
-                limit:
-                  description: Maximum number of results to return (1-100, default 100). You are billed per result returned, so a lower limit costs less.
-                  maximum: 100
-                  minimum: 1
-                  type: integer
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
-                rating:
-                  description: Only return reviews with this exact star rating from 1 to 5 (e.g. 1); omit for all ratings.
-                  type: integer
-                recentDays:
-                  description: Only return reviews from the last N days (e.g. 30); omit for no time limit.
-                  minimum: 1
-                  type: integer
-                sortBy:
-                  description: 'Review ordering: mostRelevant, newest, or rating (e.g. newest).'
-                  type: string
+                requireFields:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Name the output fields this request must be able to return, for example `reviewCount` or `developerEmail`, and it is served only by a source that returns every one of them. Fields you do not name are still returned whenever the serving source has them. This can raise your price: when the cheapest source cannot return a named field, a dearer source serves, and you are quoted and charged its price. A named field can still be absent on an app that genuinely lacks it. Naming a combination that no single source returns together is refused as invalid input, with no charge.'
+                  items:
+                    enum:
+                    - author
+                    - containsAds
+                    - createdUtc
+                    - dataSafety
+                    - developerAddress
+                    - developerEmail
+                    - developerId
+                    - developerPhone
+                    - editorsChoice
+                    - group
+                    - headerImage
+                    - helpfulVotes
+                    - id
+                    - installCount
+                    - minAndroidVersion
+                    - moreByDeveloper
+                    - permissions
+                    - ratingHistogram
+                    - recentChanges
+                    - reviewCount
+                    - reviewSamples
+                    - similarApps
+                    - text
+                    - version
+                    type: string
+                  type: array
+                  uniqueItems: true
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - appId
-              title: Google Play reviews input
+              title: Google Play app details input
               type: object
         required: true
       responses:
@@ -142,10 +156,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -155,61 +169,373 @@ paths:
                     - additionalProperties: false
                       properties:
                         data:
-                          description: The result wrapper, or null when nothing was found.
+                          description: The app listing, or null when the package name does not exist on Google Play.
                           oneOf:
                           - type: 'null'
-                          - additionalProperties: false
-                            properties:
-                              items:
-                                description: 'Review records: star rating, review text, reviewer name, app version, helpfulness votes, and review date. Populated whenever the provider has data for the entity.'
+                          - properties:
+                              appId:
+                                description: Android package name. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              category:
+                                description: Google Play category name (e.g. Music & Audio). Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              categoryId:
+                                description: Google Play category ID (e.g. MUSIC_AND_AUDIO). Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              containsAds:
+                                description: True when the listing says the app contains ads.
+                                type:
+                                - boolean
+                                - 'null'
+                              contentRating:
+                                description: Content rating as shown (e.g. Teen). Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              currency:
+                                description: ISO 4217 currency code of the price (e.g. USD).
+                                type:
+                                - string
+                                - 'null'
+                              dataSafety:
+                                description: 'The Data safety section: what the developer says the app shares and collects.'
+                                items:
+                                  properties:
+                                    description:
+                                      description: Data types it covers.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    title:
+                                      description: Statement (e.g. This app may collect these data types).
+                                      type: string
+                                  required:
+                                  - title
+                                  type: object
+                                type:
+                                - array
+                                - 'null'
+                              description:
+                                description: Full app description as plain text. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              developer:
+                                description: Developer name as listed. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              developerAddress:
+                                description: Developer postal address.
+                                type:
+                                - string
+                                - 'null'
+                              developerEmail:
+                                description: Developer support email address.
+                                type:
+                                - string
+                                - 'null'
+                              developerId:
+                                description: Google Play developer ID.
+                                type:
+                                - string
+                                - 'null'
+                              developerPhone:
+                                description: Developer phone number.
+                                type:
+                                - string
+                                - 'null'
+                              developerWebsite:
+                                description: Developer website URL.
+                                type:
+                                - string
+                                - 'null'
+                              editorsChoice:
+                                description: True when the app carries the Editors' Choice badge.
+                                type:
+                                - boolean
+                                - 'null'
+                              headerImage:
+                                description: Feature graphic image URL.
+                                type:
+                                - string
+                                - 'null'
+                              image:
+                                description: App icon image URL. Populated whenever the provider has data for the entity.
+                                format: uri
+                                type: string
+                                x-anyapi-must-populate: true
+                              inAppPurchaseRange:
+                                description: Price range of in-app purchases as shown (e.g. $4.99 - $203.88 per item); null when the app has none.
+                                type:
+                                - string
+                                - 'null'
+                              installCount:
+                                description: Install count Google Play holds behind the bracket.
+                                type:
+                                - integer
+                                - 'null'
+                              installs:
+                                description: Install count bracket as Google Play shows it (e.g. 1,000,000,000+). Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              minAndroidVersion:
+                                description: Minimum Android version required; null when it varies with device.
+                                type:
+                                - string
+                                - 'null'
+                              minInstalls:
+                                description: Lower bound of the install bracket (e.g. 1000000000). Populated whenever the provider has data for the entity.
+                                type: integer
+                                x-anyapi-must-populate: true
+                              moreByDeveloper:
+                                description: Other apps by the same developer, from the listing's More by section.
+                                items:
+                                  properties:
+                                    appId:
+                                      description: Android package name.
+                                      type: string
+                                    developer:
+                                      description: Developer name.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    image:
+                                      description: App icon image URL.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    rating:
+                                      description: Average star rating, 0 to 5.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    title:
+                                      description: App name.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    url:
+                                      description: Google Play page URL.
+                                      type:
+                                      - string
+                                      - 'null'
+                                  required:
+                                  - appId
+                                  type: object
+                                type:
+                                - array
+                                - 'null'
+                              permissions:
+                                description: Android permissions the app requests, grouped.
+                                items:
+                                  properties:
+                                    group:
+                                      description: Permission group (e.g. Location).
+                                      type: string
+                                    permissions:
+                                      description: Individual permissions in the group.
+                                      items:
+                                        type: string
+                                      type:
+                                      - array
+                                      - 'null'
+                                  required:
+                                  - group
+                                  type: object
+                                type:
+                                - array
+                                - 'null'
+                              price:
+                                description: Price to install in the country's currency; 0 for a free app. Populated whenever the provider has data for the entity.
+                                type: number
+                                x-anyapi-must-populate: true
+                              privacyPolicyUrl:
+                                description: Privacy policy URL.
+                                type:
+                                - string
+                                - 'null'
+                              rating:
+                                description: Average star rating, 0 to 5. Populated whenever the provider has data for the entity.
+                                type: number
+                                x-anyapi-must-populate: true
+                              ratingCount:
+                                description: Number of star ratings the app has (ratings, not written reviews). Populated whenever the provider has data for the entity.
+                                type: integer
+                                x-anyapi-must-populate: true
+                              ratingHistogram:
+                                description: Number of ratings at each star level.
+                                properties:
+                                  fiveStar:
+                                    description: Number of 5-star ratings.
+                                    type:
+                                    - integer
+                                    - 'null'
+                                  fourStar:
+                                    description: Number of 4-star ratings.
+                                    type:
+                                    - integer
+                                    - 'null'
+                                  oneStar:
+                                    description: Number of 1-star ratings.
+                                    type:
+                                    - integer
+                                    - 'null'
+                                  threeStar:
+                                    description: Number of 3-star ratings.
+                                    type:
+                                    - integer
+                                    - 'null'
+                                  twoStar:
+                                    description: Number of 2-star ratings.
+                                    type:
+                                    - integer
+                                    - 'null'
+                                type:
+                                - object
+                                - 'null'
+                              recentChanges:
+                                description: What's new in the latest update.
+                                type:
+                                - string
+                                - 'null'
+                              releasedUtc:
+                                description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the app was first released. Populated whenever the provider has data for the entity.
+                                type: number
+                                x-anyapi-must-populate: true
+                              reviewCount:
+                                description: Number of written reviews, a subset of the ratings.
+                                type:
+                                - integer
+                                - 'null'
+                              reviewSamples:
+                                description: A few reviews shown on the listing page; use playstore.reviews for the full list.
                                 items:
                                   properties:
                                     author:
-                                      description: Reviewer display name. Populated whenever the provider has data for the entity.
-                                      type: string
-                                      x-anyapi-must-populate: true
+                                      description: Reviewer name.
+                                      type:
+                                      - string
+                                      - 'null'
                                     createdUtc:
-                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the review was posted. Populated whenever the provider has data for the entity.
-                                      type: number
-                                      x-anyapi-must-populate: true
+                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the review was posted.
+                                      type:
+                                      - number
+                                      - 'null'
                                     helpfulVotes:
-                                      description: Number of helpful votes on the review.
-                                      type: integer
+                                      description: Number of people who found the review helpful.
+                                      type:
+                                      - integer
+                                      - 'null'
                                     id:
-                                      description: Review identifier. Populated whenever the provider has data for the entity.
-                                      type: string
-                                      x-anyapi-must-populate: true
+                                      description: Review identifier.
+                                      type:
+                                      - string
+                                      - 'null'
                                     rating:
-                                      description: Star rating, 1 to 5. Populated whenever the provider has data for the entity.
+                                      description: Star rating, 1 to 5.
                                       type: number
-                                      x-anyapi-must-populate: true
                                     text:
-                                      description: Review body text. Populated whenever the provider has data for the entity.
-                                      type: string
-                                      x-anyapi-must-populate: true
-                                    title:
-                                      description: Review title, when the store provides one.
-                                      type: string
+                                      description: Review text.
+                                      type:
+                                      - string
+                                      - 'null'
                                     version:
                                       description: App version the review was left on.
-                                      type: string
+                                      type:
+                                      - string
+                                      - 'null'
                                   required:
                                   - rating
-                                  - text
                                   type: object
+                                type:
+                                - array
+                                - 'null'
+                              screenshots:
+                                description: Screenshot image URLs. Populated whenever the provider has data for the entity.
+                                items:
+                                  type: string
                                 type: array
                                 x-anyapi-must-populate: true
+                              similarApps:
+                                description: Apps from the listing's Similar apps (or Similar games) section.
+                                items:
+                                  properties:
+                                    appId:
+                                      description: Android package name.
+                                      type: string
+                                    developer:
+                                      description: Developer name.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    image:
+                                      description: App icon image URL.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    rating:
+                                      description: Average star rating, 0 to 5.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    title:
+                                      description: App name.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    url:
+                                      description: Google Play page URL.
+                                      type:
+                                      - string
+                                      - 'null'
+                                  required:
+                                  - appId
+                                  type: object
+                                type:
+                                - array
+                                - 'null'
+                              summary:
+                                description: Short description shown under the app name.
+                                type:
+                                - string
+                                - 'null'
+                              title:
+                                description: App name as listed. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              updatedUtc:
+                                description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the app was last updated. Populated whenever the provider has data for the entity.
+                                type: number
+                                x-anyapi-must-populate: true
+                              url:
+                                description: Google Play page URL for the app. Populated whenever the provider has data for the entity.
+                                format: uri
+                                type: string
+                                x-anyapi-must-populate: true
+                              version:
+                                description: Current version number; null when the listing says it varies with device.
+                                type:
+                                - string
+                                - 'null'
                             required:
-                            - items
+                            - appId
+                            - title
                             type: object
                         found:
-                          description: True when at least one review record was returned.
+                          description: True when the app was found in the requested country.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
-                      title: Google Play reviews output
+                      title: Google Play app details output
                       type: object
+                      x-anyapi-result-list: false
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -221,6 +547,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -296,7 +646,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -314,7 +664,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -331,17 +681,16 @@ paths:
       - bearerAuth: []
       - apiKeyAuth: []
       - {}
-      summary: Google Play Reviews
+      summary: Google Play App Details
       tags:
       - playstore
       x-mint:
-        href: /api-reference/playstore/reviews
+        href: /api-reference/playstore/app
       x-payment-info:
         price:
+          amount: '0.000850'
           currency: USD
-          max: '0.018000'
-          min: '0.000000'
-          mode: dynamic
+          mode: fixed
         protocols:
         - x402:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -368,11 +717,10 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
+            amount: '0.001000'
             currency: USD
-            max: '0.018000'
-            min: '0.001000'
             minimumUsd: '0.001000'
-            mode: dynamic
+            mode: fixed
             quoteBasis: floor
           protocol:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -392,12 +740,970 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
+            amount: '0.000850'
             currency: USD
-            max: '0.018000'
-            min: '0.000000'
             minimumUsd: null
-            mode: dynamic
-            quoteBasis: funded_ceiling
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/playstore.reviews:
+    post:
+      description: 'Fetch Google Play reviews for any Android app by package name or store URL: ratings, review text, dates, and helpfulness votes.
+
+
+        **Price:** \$0.90 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** 3 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+
+
+        **Catalog:** Google Play Reviews pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Playstore endpoint.'
+      operationId: playstore_reviews
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              appId: com.whatsapp
+              limit: 3
+            schema:
+              additionalProperties: false
+              example:
+                appId: com.whatsapp
+                limit: 3
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                appId:
+                  description: Android app package name or full Google Play store URL (e.g. com.supercell.brawlstars).
+                  type: string
+                appVersion:
+                  description: Only return reviews left on these app versions (e.g. ["2.24.1", "2.24.2"]).
+                  items:
+                    type: string
+                  type: array
+                deviceType:
+                  description: Only return reviews from this device type (e.g. "tablet"); omit for the provider default.
+                  enum:
+                  - mobile
+                  - tablet
+                  - chromebook
+                  type: string
+                endDate:
+                  description: Only return reviews on or before this date, inclusive, in YYYY-MM-DD format (e.g. 2026-06-30).
+                  pattern: ^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$
+                  type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                keywords:
+                  description: Only return reviews whose text contains one of these keywords (e.g. ["crash", "login"]).
+                  items:
+                    type: string
+                  type: array
+                languages:
+                  description: Only return reviews in these ISO 639-1 languages (e.g. ["en", "es"]).
+                  items:
+                    type: string
+                  type: array
+                limit:
+                  description: Maximum number of results to return (1-100, default 100).
+                  maximum: 100
+                  minimum: 1
+                  type: integer
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                rating:
+                  description: Only return reviews with this exact star rating from 1 to 5 (e.g. 1); omit for all ratings.
+                  type: integer
+                recentDays:
+                  description: Only return reviews from the last N days (e.g. 30); omit for no time limit.
+                  minimum: 1
+                  type: integer
+                requireFields:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Name the output fields this request must be able to return, for example `title` or `appId`, and it is served only by a source that returns every one of them. Fields you do not name are still returned whenever the serving source has them. This can raise your price: when the cheapest source cannot return a named field, a dearer source serves, and you are quoted and charged its price. A named field can still be absent on a review that genuinely lacks it. Naming a combination that no single source returns together is refused as invalid input, with no charge.'
+                  items:
+                    enum:
+                    - appId
+                    - title
+                    type: string
+                  type: array
+                  uniqueItems: true
+                sortBy:
+                  description: 'Review ordering: mostRelevant, newest, or rating (e.g. newest).'
+                  type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+              required:
+              - appId
+              title: Google Play reviews input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The result wrapper, or null when nothing was found.
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              items:
+                                description: 'Review records: star rating, review text, reviewer name, app version, helpfulness votes, and review date. Populated whenever the provider has data for the entity.'
+                                items:
+                                  properties:
+                                    appId:
+                                      description: Google Play package name the review belongs to.
+                                      type: string
+                                    author:
+                                      description: Reviewer display name. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    authorAvatarUrl:
+                                      description: Reviewer profile photo URL.
+                                      type: string
+                                    createdUtc:
+                                      description: UTC epoch timestamp in seconds (Unix time). Multiply by 1000 for a JS Date in milliseconds. When the review was posted. Populated whenever the provider has data for the entity.
+                                      type: number
+                                      x-anyapi-must-populate: true
+                                    helpfulVotes:
+                                      description: Number of helpful votes on the review.
+                                      type: integer
+                                    id:
+                                      description: Review identifier. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    rating:
+                                      description: Star rating, 1 to 5. Populated whenever the provider has data for the entity.
+                                      type: number
+                                      x-anyapi-must-populate: true
+                                    text:
+                                      description: Review body text. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    title:
+                                      description: Review title, when the store provides one.
+                                      type: string
+                                    version:
+                                      description: App version the review was left on.
+                                      type: string
+                                  required:
+                                  - rating
+                                  - text
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                            required:
+                            - items
+                            type: object
+                        found:
+                          description: True when at least one review record was returned.
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: Google Play reviews output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Google Play Reviews
+      tags:
+      - playstore
+      x-mint:
+        href: /api-reference/playstore/reviews
+      x-payment-info:
+        price:
+          amount: '0.000900'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.001000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.000900'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/playstore.search:
+    post:
+      description: 'Search Google Play for Android apps by keyword, in any store country: package name, title, developer, rating, installs, price, and category for each result.
+
+
+        **Price:** \$0.85 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+
+
+        **Catalog:** Google Play Search pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Playstore endpoint.'
+      operationId: playstore_search
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              country: us
+              limit: 10
+              query: budget tracker
+            schema:
+              additionalProperties: false
+              example:
+                country: us
+                limit: 10
+                query: budget tracker
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                country:
+                  default: us
+                  description: Two-letter Google Play store country code to search (e.g. gb); results, prices, and currency follow that country. Text is returned in English.
+                  type: string
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                limit:
+                  default: 20
+                  description: Maximum number of apps to return in items (1-30, default 20). Google Play shows about 30 apps per search, so fewer may come back. The app Google Play features above the results comes back separately in featuredApps and does not count toward this limit.
+                  maximum: 30
+                  minimum: 1
+                  type: integer
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                query:
+                  description: Search keywords, as typed into the Google Play search box (e.g. budget tracker).
+                  minLength: 1
+                  type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+              required:
+              - query
+              title: Google Play search input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The result wrapper, or null when nothing was found.
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              featuredApps:
+                                description: The app Google Play features above the results, usually the exact app the query names (e.g. Minecraft for minecraft); empty when the search shows none.
+                                items:
+                                  properties:
+                                    appId:
+                                      description: Android package name.
+                                      type: string
+                                    currency:
+                                      description: ISO 4217 currency code of the price.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    description:
+                                      description: Short app description.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    developer:
+                                      description: Developer name.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    image:
+                                      description: App icon image URL.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    installs:
+                                      description: Install bracket as the featured card shows it (e.g. 50M+).
+                                      type:
+                                      - string
+                                      - 'null'
+                                    price:
+                                      description: Price to install in the country's currency; 0 for a free app.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    rating:
+                                      description: Average star rating, 0 to 5.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    ratingCount:
+                                      description: Number of star ratings (ratings, not written reviews).
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    title:
+                                      description: App name.
+                                      type: string
+                                    url:
+                                      description: Google Play page URL.
+                                      type:
+                                      - string
+                                      - 'null'
+                                  required:
+                                  - appId
+                                  - title
+                                  type: object
+                                type:
+                                - array
+                                - 'null'
+                              items:
+                                description: Matching apps in Google Play search order, including the Similar apps shelf Google Play shows under a search for one app. Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    appId:
+                                      description: Android package name; pass it to playstore.app for the full listing. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    category:
+                                      description: Google Play category name. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    currency:
+                                      description: ISO 4217 currency code of the price (e.g. USD).
+                                      type:
+                                      - string
+                                      - 'null'
+                                    description:
+                                      description: App description.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    developer:
+                                      description: Developer name. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    image:
+                                      description: App icon image URL. Populated whenever the provider has data for the entity.
+                                      format: uri
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    installs:
+                                      description: Install count bracket as Google Play shows it (e.g. 1,000,000+). Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    price:
+                                      description: Price to install in the country's currency; 0 for a free app.
+                                      type: number
+                                    rating:
+                                      description: Average star rating, 0 to 5; absent for an app with too few ratings. Populated whenever the provider has data for the entity.
+                                      type: number
+                                      x-anyapi-must-populate: true
+                                    screenshots:
+                                      description: Screenshot image URLs.
+                                      items:
+                                        type: string
+                                      type:
+                                      - array
+                                      - 'null'
+                                    title:
+                                      description: App name. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    url:
+                                      description: Google Play page URL. Populated whenever the provider has data for the entity.
+                                      format: uri
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                  required:
+                                  - appId
+                                  - title
+                                  - price
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                            required:
+                            - items
+                            type: object
+                        found:
+                          description: True when at least one app was returned.
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: Google Play search output
+                      type: object
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Google Play Search
+      tags:
+      - playstore
+      x-mint:
+        href: /api-reference/playstore/search
+      x-payment-info:
+        price:
+          amount: '0.000850'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.001000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.000850'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -414,35 +1720,22 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
+    Error:
       properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
         error:
-          const: trial_cap_reached
+          description: Customer-safe error message.
           type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
       required:
       - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
       type: object
     Payment:
       properties:
@@ -463,31 +1756,6 @@ components:
       - settlementState
       - costUsd
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -520,6 +1788,44 @@ components:
       - grantType
       - interval
       - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

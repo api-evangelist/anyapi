@@ -16,7 +16,7 @@ tags:
 paths:
   /v1/requests/{id}:
     get:
-      description: Inspect a customer-owned Request. Poll queued or running requests after retryAfterSeconds. Successful output is retained for 24 hours; metadata remains after the result expires.
+      description: Inspect a customer-owned Request. Poll queued or running requests after retryAfterSeconds; a durable result stays collectable for 24 hours. A paid request's output can be read back for the account's response retention window, 3 days unless 7 days or none is chosen in the dashboard; lowering the setting hides older output at once. Reading kept output is limited per account to 30 reads a minute for each dollar of lifetime settled spend, so an account that has spent nothing cannot read it. Metadata remains after the result expires (resultExpired).
       operationId: getRequest
       parameters:
       - in: path
@@ -44,6 +44,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Unknown request id, or a request owned by another customer.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account's limit on reading kept output is reached; retry after Retry-After seconds.
       summary: Get a request
       tags:
       - Requests
@@ -65,6 +71,25 @@ components:
           type: string
       required:
       - error
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
       type: object
     RequestSnapshot:
       properties:
@@ -93,13 +118,13 @@ components:
               description: USD charged on the ORIGINAL run, echoed for envelope parity; this re-read is free.
               type: number
             items:
-              description: Number of result rows returned by the original run.
+              description: Number of result rows returned by the original run; an API that returns one record counts it as one row.
               type: integer
             jqError:
               description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
               type: string
             output:
-              description: The normalized result (`{found, data}` by default), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
+              description: The normalized result (`{found, data}` by default, plus `reason` when `found` is false), re-shaped by any fields/max_items/summary/jq params. Open shape - a jq expression may replace it with an array or scalar.
             provider:
               description: Always "AnyAPI".
               type: string
@@ -109,6 +134,30 @@ components:
             resultId:
               description: The id you requested, echoed so you can keep re-reading the same cached result.
               type: string
+            source:
+              description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+              properties:
+                artworkKey:
+                  description: Key for this source's artwork.
+                  type: string
+                id:
+                  description: Stable identifier for this source.
+                  type: string
+                kind:
+                  description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                  enum:
+                  - anonymous
+                  - brand
+                  type: string
+                name:
+                  description: Display name for this source.
+                  type: string
+              required:
+              - id
+              - name
+              - kind
+              - artworkKey
+              type: object
           required:
           - output
           - provider
@@ -155,25 +204,6 @@ components:
       - sku
       - status
       - createdAt
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
       type: object
   securitySchemes:
     apiKeyAuth:

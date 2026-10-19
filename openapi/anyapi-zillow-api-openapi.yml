@@ -15,27 +15,27 @@ tags:
 - name: zillow
   x-group: Zillow
 paths:
-  /v1/run/zillow.property:
+  /v1/run/zillow.agent:
     post:
-      description: 'Fetch full details for a single Zillow property listing by URL (price, facts and features, photos, and price/tax history).
+      description: 'Fetch one Zillow real estate agent''s profile by URL: name, phone, email, brokerage, rating, review count, sales, and service areas.
 
 
-        **Price:** \$0.90 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$0.80 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
         **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
-        **Catalog:** Zillow Property pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Zillow endpoint.'
-      operationId: zillow_property
+        **Catalog:** Zillow Agent pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Zillow endpoint.'
+      operationId: zillow_agent
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -72,22 +72,40 @@ paths:
         content:
           application/json:
             example:
-              url: https://www.zillow.com/homedetails/4510-Secure-Ln-Austin-TX-78725/83126034_zpid/
+              url: https://www.zillow.com/profile/gregorycarlsonATX/
             schema:
               additionalProperties: false
               example:
-                url: https://www.zillow.com/homedetails/4510-Secure-Ln-Austin-TX-78725/83126034_zpid/
+                url: https://www.zillow.com/profile/gregorycarlsonATX/
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
-                  description: Zillow property details URL (e.g. https://www.zillow.com/homedetails/123-Main-St-Anytown-CA-90210/12345678_zpid/).
+                  description: Zillow agent profile URL (e.g. https://www.zillow.com/profile/gregorycarlsonATX/).
                   type: string
               required:
               - url
-              title: Zillow property input
+              title: Zillow agent input
               type: object
         required: true
       responses:
@@ -100,10 +118,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -113,95 +131,80 @@ paths:
                     - additionalProperties: false
                       properties:
                         data:
-                          description: The result wrapper, or null when the property was not found.
+                          description: The agent's profile, or null when the URL resolved to no agent.
                           oneOf:
                           - type: 'null'
-                          - additionalProperties: false
-                            properties:
-                              items:
-                                description: The matched property record (single element for a property lookup). Populated whenever the provider has data for the entity.
+                          - properties:
+                              bio:
+                                description: Agent's self-written biography, as HTML.
+                                type: string
+                              company:
+                                description: Brokerage or business name the agent works under. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              email:
+                                description: Agent's email address as listed on the profile. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              forSaleCount:
+                                description: Number of active for-sale listings.
+                                type: integer
+                              image:
+                                description: Profile photo URL. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              isTopAgent:
+                                description: True when Zillow flags the agent as a top agent.
+                                type: boolean
+                              name:
+                                description: Agent's full name. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              phone:
+                                description: Agent's phone number as listed on the profile (the cell number when one is listed). Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              rating:
+                                description: Average review rating out of 5.
+                                type: number
+                              reviewCount:
+                                description: Number of reviews on the profile.
+                                type: integer
+                              serviceAreas:
+                                description: Cities and areas the agent lists as served, e.g. "Austin, TX".
                                 items:
-                                  properties:
-                                    addressLine:
-                                      description: Street address line of the property.
-                                      type: string
-                                    baths:
-                                      description: Number of bathrooms.
-                                      type: number
-                                    beds:
-                                      description: Number of bedrooms.
-                                      type: number
-                                    city:
-                                      description: City the property is in.
-                                      type: string
-                                    county:
-                                      description: County the property is in.
-                                      type: string
-                                    currency:
-                                      description: Currency code for the price (e.g. USD).
-                                      type: string
-                                    description:
-                                      description: Listing description text.
-                                      type: string
-                                    homeStatus:
-                                      description: Listing status (e.g. FOR_SALE, RECENTLY_SOLD, OTHER).
-                                      type: string
-                                    homeType:
-                                      description: Home type (e.g. SINGLE_FAMILY, CONDO, TOWNHOUSE).
-                                      type: string
-                                    image:
-                                      description: Primary listing photo URL.
-                                      type: string
-                                    latitude:
-                                      description: Latitude of the property in decimal degrees.
-                                      type: number
-                                    longitude:
-                                      description: Longitude of the property in decimal degrees.
-                                      type: number
-                                    postalCode:
-                                      description: Postal (ZIP) code of the property.
-                                      type: string
-                                    price:
-                                      description: Listed price in the listing currency.
-                                      type: number
-                                    propertyTaxRate:
-                                      description: Annual property tax rate as a percentage.
-                                      type: number
-                                    sqft:
-                                      description: Interior living area in square feet.
-                                      type: number
-                                    state:
-                                      description: Two-letter state code the property is in.
-                                      type: string
-                                    title:
-                                      description: Street address line used as the property title.
-                                      type: string
-                                    url:
-                                      description: Canonical Zillow property detail page URL. Populated whenever the provider has data for the entity.
-                                      type: string
-                                      x-anyapi-must-populate: true
-                                    zpid:
-                                      description: Zillow property id (zpid), the stable identifier for the property. Populated whenever the provider has data for the entity.
-                                      type: string
-                                      x-anyapi-must-populate: true
-                                  required:
-                                  - zpid
-                                  - url
-                                  type: object
+                                  type: string
                                 type: array
+                              totalSales:
+                                description: Total sales on record for the agent (for a team lead, the team's total).
+                                type: integer
+                              url:
+                                description: Canonical Zillow profile URL. Populated whenever the provider has data for the entity.
+                                type: string
+                                x-anyapi-must-populate: true
+                              username:
+                                description: Zillow screen name, the last segment of the profile URL. Populated whenever the provider has data for the entity.
+                                type: string
                                 x-anyapi-must-populate: true
                             required:
-                            - items
+                            - username
+                            - name
+                            - url
                             type: object
                         found:
-                          description: True when the property URL resolved to a listing.
+                          description: True when the agent profile was found.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
-                      title: Zillow property output
+                      title: Zillow agent output
                       type: object
-                      x-anyapi-heavy: true
+                      x-anyapi-result-list: false
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -213,6 +216,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -288,7 +315,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -306,7 +333,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -323,17 +350,16 @@ paths:
       - bearerAuth: []
       - apiKeyAuth: []
       - {}
-      summary: Zillow Property
+      summary: Zillow Agent
       tags:
       - zillow
       x-mint:
-        href: /api-reference/zillow/property
+        href: /api-reference/zillow/agent
       x-payment-info:
         price:
+          amount: '0.000800'
           currency: USD
-          max: '0.002640'
-          min: '0.000900'
-          mode: dynamic
+          mode: fixed
         protocols:
         - x402:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -360,11 +386,10 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
+            amount: '0.001000'
             currency: USD
-            max: '0.002640'
-            min: '0.001000'
             minimumUsd: '0.001000'
-            mode: dynamic
+            mode: fixed
             quoteBasis: floor
           protocol:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -384,12 +409,472 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
+            amount: '0.000800'
             currency: USD
-            max: '0.002640'
-            min: '0.000900'
             minimumUsd: null
-            mode: dynamic
-            quoteBasis: funded_ceiling
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+          rail: mpp
+          settlement:
+            onExecutionFailure: charged_undelivered
+            onVerificationError: indeterminate
+            timing: before_execution
+  /v1/run/zillow.property:
+    post:
+      description: 'Fetch full details for a single Zillow property listing by URL (price, facts and features, photos, and price/tax history).
+
+
+        **Price:** \$0.80 per 1,000 requests (flat per request - same cost regardless of results returned).
+
+
+        **Routing:** 3 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+
+
+        **Catalog:** Zillow Property pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Zillow endpoint.'
+      operationId: zillow_property
+      parameters:
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
+        in: query
+        name: max_items
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - description: Optional. Return only a structural outline (top-level keys, item counts, and per-field byte sizes) instead of the full data. Does not change cost.
+        in: query
+        name: summary
+        required: false
+        schema:
+          type: boolean
+      - description: 'Optional. A jq expression applied to the result envelope; its output replaces `output` (multiple outputs collect into an array). Reshape freely, e.g. `jq=.data | {title, description, md: .markdown[:3500]}`. Runs sandboxed with a 250ms / 2MB budget; on failure the full result is returned with a `jqError`. Does not change cost.'
+        in: query
+        name: jq
+        required: false
+        schema:
+          type: string
+      - description: Optional. The most you are willing to pay for this one request, in US dollars (for example 0.05). Any route that would charge more than this is not used, so a request only ever runs on something you can afford. If nothing is available at or below your amount, the request is refused before it runs, nothing is charged, and the message tells you the cheapest price per request so you can raise it. Leave it out to accept the normal price.
+        in: query
+        name: max_cost_usd
+        required: false
+        schema:
+          type: string
+      - description: Optional wallet idempotency key, scoped to this customer for 24 hours. When the gateway honors the key, this synchronous in-process execution can continue after the caller disconnects, bounded by its execution deadline. A completed replayable result charges normally exactly once and can be replayed without another provider run or charge. A pending duplicate returns 409 idempotency_in_progress; reuse with different request semantics returns 409 idempotency_conflict.
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          minLength: 1
+          type: string
+      requestBody:
+        content:
+          application/json:
+            example:
+              url: https://www.zillow.com/homedetails/4510-Secure-Ln-Austin-TX-78725/83126034_zpid/
+            schema:
+              additionalProperties: false
+              example:
+                url: https://www.zillow.com/homedetails/4510-Secure-Ln-Austin-TX-78725/83126034_zpid/
+              properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                preferLatencyUnderMs:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
+                  minimum: 1
+                  type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
+                url:
+                  description: Zillow property details URL (e.g. https://www.zillow.com/homedetails/123-Main-St-Anytown-CA-90210/12345678_zpid/).
+                  type: string
+              required:
+              - url
+              title: Zillow property input
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  costUsd:
+                    description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
+                    type: number
+                  hint:
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
+                    type: string
+                  items:
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
+                    type: integer
+                  jqError:
+                    description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
+                    type: string
+                  output:
+                    anyOf:
+                    - additionalProperties: false
+                      properties:
+                        data:
+                          description: The result wrapper, or null when the property was not found.
+                          oneOf:
+                          - type: 'null'
+                          - additionalProperties: false
+                            properties:
+                              items:
+                                description: The matched property record (single element for a property lookup). Populated whenever the provider has data for the entity.
+                                items:
+                                  properties:
+                                    addressLine:
+                                      description: Street address line of the property.
+                                      type: string
+                                    baths:
+                                      description: Number of bathrooms.
+                                      type: number
+                                    beds:
+                                      description: Number of bedrooms.
+                                      type: number
+                                    city:
+                                      description: City the property is in.
+                                      type: string
+                                    country:
+                                      description: Country the property is in.
+                                      type: string
+                                    county:
+                                      description: County the property is in.
+                                      type: string
+                                    currency:
+                                      description: Currency code for the price (e.g. USD).
+                                      type: string
+                                    daysOnZillow:
+                                      description: Days the listing has been on Zillow.
+                                      type: integer
+                                    description:
+                                      description: Listing description text.
+                                      type: string
+                                    homeStatus:
+                                      description: Listing status (e.g. FOR_SALE, RECENTLY_SOLD, OTHER).
+                                      type: string
+                                    homeType:
+                                      description: Home type (e.g. SINGLE_FAMILY, CONDO, TOWNHOUSE).
+                                      type: string
+                                    image:
+                                      description: Primary listing photo URL.
+                                      type: string
+                                    images:
+                                      description: Listing photos.
+                                      items:
+                                        properties:
+                                          url:
+                                            description: Photo URL.
+                                            type: string
+                                        type: object
+                                      type: array
+                                    latitude:
+                                      description: Latitude of the property in decimal degrees.
+                                      type: number
+                                    longitude:
+                                      description: Longitude of the property in decimal degrees.
+                                      type: number
+                                    mlsName:
+                                      description: Name of the multiple listing service the listing came from.
+                                      type: string
+                                    postalCode:
+                                      description: Postal (ZIP) code of the property.
+                                      type: string
+                                    price:
+                                      description: Listed price in the listing currency.
+                                      type: number
+                                    propertyTaxRate:
+                                      description: Annual property tax rate as a percentage.
+                                      type: number
+                                    rentZestimate:
+                                      description: Zillow estimated monthly rent, or null when Zillow shows no rent Zestimate for the property.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    sqft:
+                                      description: Interior living area in square feet.
+                                      type: number
+                                    state:
+                                      description: Two-letter state code the property is in.
+                                      type: string
+                                    title:
+                                      description: Street address line used as the property title.
+                                      type: string
+                                    url:
+                                      description: Canonical Zillow property detail page URL. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    zestimate:
+                                      description: Zillow estimated market value, or null when Zillow shows no Zestimate for the property.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    zpid:
+                                      description: Zillow property id (zpid), the stable identifier for the property. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                  required:
+                                  - zpid
+                                  - url
+                                  type: object
+                                type: array
+                                x-anyapi-must-populate: true
+                            required:
+                            - items
+                            type: object
+                        found:
+                          description: True when the property URL resolved to a listing.
+                          type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
+                      required:
+                      - found
+                      - data
+                      title: Zillow property output
+                      type: object
+                      x-anyapi-heavy: true
+                    - type: 'null'
+                    description: Normalized output, or null when the replay payload was not retained.
+                  provider:
+                    description: Always "AnyAPI".
+                    type: string
+                  replayed:
+                    description: True when this response replays the durable result of an earlier run without billing or upstream execution.
+                    type: boolean
+                  resultId:
+                    description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
+                    type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
+                required:
+                - output
+                - provider
+                - costUsd
+                - items
+                - replayed
+                type: object
+          description: Normalized result.
+          headers:
+            Idempotency-Replayed:
+              description: Present only when the request carried an Idempotency-Key this gateway honored. "false" means the key was claimed and the run executed freshly; "true" means it replayed a prior identical run and was NOT charged again. Absent means either no key was sent or this gateway does not honor keys, so a retry could be charged twice.
+              schema:
+                enum:
+                - 'false'
+                - 'true'
+                type: string
+            PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+            Payment-Receipt:
+              description: Inline mpp payment receipt.
+              schema:
+                type: string
+            X-PAYMENT-RESPONSE:
+              description: Inline x402 payment receipt.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Input did not match the schema, or the upstream rejected the request.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing or invalid API key.
+        '402':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/PaymentRequiredError'
+                - $ref: '#/components/schemas/TrialCapReached'
+            application/problem+json:
+              schema:
+                properties:
+                  challengeId:
+                    minLength: 1
+                    type: string
+                  status:
+                    const: 402
+                    type: integer
+                required:
+                - status
+                - challengeId
+                type: object
+          description: Insufficient wallet balance or spend cap, or an inline-payment challenge. Agent trials receive a trial_cap_reached continuation with a live RFC 8628 device authorization.
+          headers:
+            PAYMENT-REQUIRED:
+              description: Inline x402 payment challenge.
+              schema:
+                type: string
+            WWW-Authenticate:
+              description: Inline mpp payment challenge.
+              schema:
+                type: string
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'Idempotency collision. Codes: idempotency_in_progress means retry after the Retry-After delay; idempotency_conflict means use a new key for different request semantics; idempotency_needs_review means stop retrying and contact AnyAPI support with X-Anyapi-Request-Id.'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was well formed but this API cannot serve the requested target site; the body's `alternatives` array lists the AnyAPI APIs that can.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: An internal error prevented completion. Inspect payment when present before retrying.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Every provider failed with a server/transport error, or inline payment settlement could not be confirmed; inspect `payment` when present before retrying.
+      security:
+      - bearerAuth: []
+      - apiKeyAuth: []
+      - {}
+      summary: Zillow Property
+      tags:
+      - zillow
+      x-mint:
+        href: /api-reference/zillow/property
+      x-payment-info:
+        price:
+          amount: '0.000800'
+          currency: USD
+          mode: fixed
+        protocols:
+        - x402:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+        - mpp:
+            asset: '0x20c000000000000000000000b9537d11c60e8b50'
+            currency: USD
+            intent: charge
+            method: tempo
+            network: tempo
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            rail: tempo
+            scheme: exact
+        rails:
+        - headers:
+            challenge:
+            - PAYMENT-REQUIRED
+            credential:
+            - PAYMENT-SIGNATURE
+            - X-PAYMENT
+            receipt:
+            - PAYMENT-RESPONSE
+            - X-PAYMENT-RESPONSE
+          pricing:
+            amount: '0.001000'
+            currency: USD
+            minimumUsd: '0.001000'
+            mode: fixed
+            quoteBasis: floor
+          protocol:
+            asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+            network: eip155:8453
+            payTo: '0x754BD2A6799e766B1E2b9f1Ae7fBdC0CeD96ef13'
+            scheme: exact
+          rail: x402
+          settlement:
+            onExecutionFailure: released
+            onUnknownFinalization: indeterminate
+            timing: after_execution
+        - headers:
+            challenge:
+            - WWW-Authenticate
+            credential:
+            - Authorization
+            receipt:
+            - Payment-Receipt
+          pricing:
+            amount: '0.000800'
+            currency: USD
+            minimumUsd: null
+            mode: fixed
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -409,22 +894,22 @@ paths:
       description: 'Search Zillow for-sale, rental, or sold listings by region-level location (city, ZIP, county, or neighborhood) with optional price, bedroom, living-area, home-type, recency, and sort filters and get matching properties (price, address, beds, baths, living area, status, Zestimate) as normalized JSON.
 
 
-        **Price:** \$0.90 per 1,000 requests (flat per request - same cost regardless of results returned).
+        **Price:** \$0.80 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
-        **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+        **Routing:** 3 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
         **Catalog:** Zillow Search pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Zillow endpoint.'
       operationId: zillow_search
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -475,6 +960,10 @@ paths:
                 minBedrooms: 3
                 operation: buy
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 daysOnZillow:
                   description: Only include listings on Zillow at most this long (e.g. 1_week).
                   enum:
@@ -501,6 +990,13 @@ paths:
                     - land
                     type: string
                   type: array
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 includeAcceptingBackupOffers:
                   description: Include listings accepting backup offers, which Zillow excludes by default (e.g. true).
                   type: boolean
@@ -569,6 +1065,18 @@ paths:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                requireFields:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Name the output fields this request must be able to return, for example `yearBuilt`, and it is served only by a source that returns every one of them. Fields you do not name are still returned whenever the serving source has them. This can raise your price: when the cheapest source cannot return a named field, a dearer source serves, and you are quoted and charged its price. A named field can still be absent on a listing that genuinely lacks it. Naming a combination that no single source returns together is refused as invalid input, with no charge.'
+                  items:
+                    enum:
+                    - brokerName
+                    - images
+                    - isZillowOwned
+                    - taxAssessedValue
+                    - yearBuilt
+                    type: string
+                  type: array
+                  uniqueItems: true
                 showOnlyPriceReductions:
                   description: Only show listings with a price reduction. Buy searches only; ignored for rentals (e.g. true).
                   type: boolean
@@ -583,6 +1091,13 @@ paths:
                   - bathrooms
                   - rentalPriorityScore
                   type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
               required:
               - location
               title: Zillow search input
@@ -598,10 +1113,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -625,10 +1140,13 @@ paths:
                                     beds:
                                       description: Number of bedrooms.
                                       type: number
+                                    brokerName:
+                                      description: Listing brokerage name.
+                                      type: string
                                     city:
                                       type: string
                                     currency:
-                                      description: ISO currency code of the price (e.g. usd).
+                                      description: ISO currency code of the price (e.g. USD).
                                       type: string
                                     daysOnZillow:
                                       description: Days the listing has been on Zillow.
@@ -637,6 +1155,14 @@ paths:
                                       description: URL of the primary listing photo. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    images:
+                                      description: Listing photo URLs.
+                                      items:
+                                        type: string
+                                      type: array
+                                    isZillowOwned:
+                                      description: True when Zillow itself owns the property.
+                                      type: boolean
                                     latitude:
                                       type: number
                                     livingArea:
@@ -645,36 +1171,55 @@ paths:
                                     longitude:
                                       type: number
                                     lotSize:
-                                      description: Lot size in square feet.
-                                      type: number
+                                      description: Lot size as Zillow states it, in the unit named by lotSizeUnit (square feet or acres), or null when the listing has no lot size.
+                                      type:
+                                      - number
+                                      - 'null'
+                                    lotSizeUnit:
+                                      description: 'Unit of lotSize: sqft or acres. Null when the listing has no lot size or the serving source does not name the unit.'
+                                      type:
+                                      - string
+                                      - 'null'
                                     price:
                                       description: List price in the listing currency.
                                       type: number
                                     propertyType:
-                                      description: Property type (e.g. singleFamily, condo, townhouse).
+                                      description: Property type (e.g. SINGLE_FAMILY, CONDO, TOWNHOUSE).
                                       type: string
                                     rentZestimate:
-                                      description: Zillow estimated monthly rent.
-                                      type: number
+                                      description: Zillow estimated monthly rent, or null when Zillow shows no rent Zestimate for the listing.
+                                      type:
+                                      - number
+                                      - 'null'
                                     state:
                                       description: Two-letter state code.
                                       type: string
                                     status:
-                                      description: Listing status (e.g. forSale, forRent, sold).
+                                      description: Listing status (e.g. FOR_SALE, FOR_RENT, RECENTLY_SOLD).
                                       type: string
                                     streetAddress:
                                       description: Street address of the property. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    taxAssessedValue:
+                                      description: Assessed value the county tax authority carries for the property, or null when none is published.
+                                      type:
+                                      - number
+                                      - 'null'
                                     url:
                                       description: Absolute Zillow listing URL. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
                                     yearBuilt:
-                                      type: integer
+                                      description: Year the home was built, or null when the serving source does not publish it.
+                                      type:
+                                      - integer
+                                      - 'null'
                                     zestimate:
-                                      description: Zillow estimated market value.
-                                      type: number
+                                      description: Zillow estimated market value, or null when Zillow shows no Zestimate for the listing.
+                                      type:
+                                      - number
+                                      - 'null'
                                     zipcode:
                                       type: string
                                     zpid:
@@ -692,6 +1237,11 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -708,6 +1258,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -783,7 +1357,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -801,7 +1375,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -825,10 +1399,9 @@ paths:
         href: /api-reference/zillow/search
       x-payment-info:
         price:
+          amount: '0.000800'
           currency: USD
-          max: '0.083100'
-          min: '0.000900'
-          mode: dynamic
+          mode: fixed
         protocols:
         - x402:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -855,11 +1428,10 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
+            amount: '0.001000'
             currency: USD
-            max: '0.083100'
-            min: '0.001000'
             minimumUsd: '0.001000'
-            mode: dynamic
+            mode: fixed
             quoteBasis: floor
           protocol:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -879,12 +1451,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
+            amount: '0.000800'
             currency: USD
-            max: '0.083100'
-            min: '0.000900'
             minimumUsd: null
-            mode: dynamic
-            quoteBasis: funded_ceiling
+            mode: fixed
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -901,35 +1472,22 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
+    Error:
       properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
         error:
-          const: trial_cap_reached
+          description: Customer-safe error message.
           type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
       required:
       - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
       type: object
     Payment:
       properties:
@@ -950,31 +1508,6 @@ components:
       - settlementState
       - costUsd
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -1007,6 +1540,44 @@ components:
       - grantType
       - interval
       - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:

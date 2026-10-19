@@ -17,25 +17,25 @@ tags:
 paths:
   /v1/run/web.crawl:
     post:
-      description: 'Crawl a website and get clean text content from up to 10 pages in one normalized response, ideal for feeding sites into LLMs and search indexes.
+      description: 'Crawl a website and get up to 10 of its pages as separate items, each with its URL, title, description, language, HTTP status, clean Markdown text and page metadata such as headings and structured data, ideal for feeding sites into LLMs and search indexes. Pages that failed or were skipped are listed separately and never billed.
 
 
-        **Price:** billed per result - \$1.65 per 1,000 requests base + \$3.30 per 1,000 results, capped at \$34.70 per 1,000 requests.
+        **Price:** billed per result - \$1.25 per 1,000 results, capped at \$12.50 per 1,000 requests.
 
 
-        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+        **Routing:** 3 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
         **Catalog:** Website Crawl pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Web endpoint.'
       operationId: web_crawl
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -80,8 +80,19 @@ paths:
                 limit: 3
                 url: https://example.com
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 limit:
-                  description: Maximum number of results to return (1-10, default 10). You are billed per result returned, so a lower limit costs less.
+                  description: Maximum number of pages to crawl and return (1-10, default 10). You are billed per page returned, so a lower limit costs less.
                   maximum: 10
                   minimum: 1
                   type: integer
@@ -89,13 +100,38 @@ paths:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                requireFields:
+                  description: Optional; omit it and routing is unchanged. Name the output fields this request must be able to return, for example `language`, and it is served only by a source that returns every one of them. Fields you do not name are still returned whenever the serving source has them. Every source charges the same per page, so this never changes your price. A named field can still be empty on a page that genuinely lacks it.
+                  items:
+                    enum:
+                    - author
+                    - canonicalUrl
+                    - contentType
+                    - headings
+                    - jsonLd
+                    - language
+                    - modifiedUtc
+                    - publishedUtc
+                    - robots
+                    - siteName
+                    type: string
+                  type: array
+                  uniqueItems: true
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
-                  description: The website URL or domain to crawl.
+                  description: The website URL or domain to crawl. Pages linked from it on the same site are crawled too.
                   type: string
               required:
               - url
               title: Website crawl input
               type: object
+              x-anyapi-any-host: true
         required: true
       responses:
         '200':
@@ -107,10 +143,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -124,16 +160,120 @@ paths:
                           - type: 'null'
                           - additionalProperties: false
                             properties:
-                              items:
-                                description: 'Crawled page records: URL, page title, and extracted text content for each page. Populated whenever the provider has data for the entity.'
+                              issues:
+                                description: Pages the crawl reported as failed or skipped. They are never in items and never billed. The list holds what the crawl reported, not every page of the site.
                                 items:
                                   properties:
+                                    outcome:
+                                      description: 'failed: the page could not be fetched or answered with an HTTP error. robots_disallowed: the site''s robots.txt does not allow crawling it. skipped: the crawl did not fetch it, for example because it is outside the crawled site.'
+                                      enum:
+                                      - failed
+                                      - robots_disallowed
+                                      - skipped
+                                      type: string
+                                    statusCode:
+                                      description: The HTTP status code the page answered with, or null when unknown.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    url:
+                                      description: The page's URL.
+                                      type: string
+                                  required:
+                                  - url
+                                  - outcome
+                                  type: object
+                                type: array
+                              items:
+                                description: 'One record per crawled page: its URL and domain, page title, meta description, language, HTTP status, the page content as Markdown text, and the page metadata the source reports. You are billed for these pages only. Populated whenever the provider has data for the entity.'
+                                items:
+                                  properties:
+                                    author:
+                                      description: The author the page declares, or null when unknown.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    canonicalUrl:
+                                      description: The canonical URL the page declares in its own markup, or null when it declares none or the source does not report it.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    contentType:
+                                      description: The content type the page was served with (for example text/html;charset=utf-8), or null when unknown.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    description:
+                                      description: The page's meta description, empty when the page has none.
+                                      type: string
                                     domain:
-                                      description: Populated whenever the provider has data for the entity.
+                                      description: The page's host name, without a leading www. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
+                                    headings:
+                                      description: The page's headings in document order, each with its level (1 for an h1) and text, or null when the source does not report them.
+                                      items:
+                                        properties:
+                                          level:
+                                            description: The heading level, 1 to 6.
+                                            type: integer
+                                          text:
+                                            description: The heading text.
+                                            type: string
+                                        type: object
+                                      type:
+                                      - array
+                                      - 'null'
+                                    jsonLd:
+                                      description: The JSON-LD structured data blocks the page publishes (schema.org Organization, LocalBusiness, BreadcrumbList and so on), as parsed JSON, or null when the source does not report them. They are the publisher's own claims, not verified facts.
+                                      items: {}
+                                      type:
+                                      - array
+                                      - 'null'
+                                    language:
+                                      description: The page's declared language code (for example en-US), or null when unknown.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    modifiedUtc:
+                                      description: When the page says it was last modified, as a UTC epoch timestamp in seconds (Unix time), or null when unknown. Multiply by 1000 for a JS Date in milliseconds.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    publishedUtc:
+                                      description: When the page says it was published, as a UTC epoch timestamp in seconds (Unix time), or null when unknown. Multiply by 1000 for a JS Date in milliseconds.
+                                      type:
+                                      - integer
+                                      - 'null'
+                                    robots:
+                                      description: The page's robots meta directives (for example noindex, nofollow), or null when it declares none or the source does not report them.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    siteName:
+                                      description: The site name the page declares (its og:site_name), or null when unknown.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    sourceUrl:
+                                      description: The URL the crawler requested for this page, before any redirect, or null when unknown.
+                                      type:
+                                      - string
+                                      - 'null'
+                                    statusCode:
+                                      description: The HTTP status code the page answered with, or null when unknown.
+                                      type:
+                                      - integer
+                                      - 'null'
                                     text:
-                                      description: Populated whenever the provider has data for the entity.
+                                      description: The page content as Markdown. Populated whenever the provider has data for the entity.
+                                      type: string
+                                      x-anyapi-must-populate: true
+                                    title:
+                                      description: The page title, empty when the page has none (a PDF, for example).
+                                      type: string
+                                    url:
+                                      description: The crawled page's URL, after any redirect. Populated whenever the provider has data for the entity.
                                       type: string
                                       x-anyapi-must-populate: true
                                   required:
@@ -142,16 +282,43 @@ paths:
                                   type: object
                                 type: array
                                 x-anyapi-must-populate: true
+                              summary:
+                                description: Counts for this crawl. They describe the pages this crawl visited and reported, not the whole website, and are not added together into a total.
+                                properties:
+                                  pagesReturned:
+                                    description: The number of pages in items, which is the number you are billed for.
+                                    type: integer
+                                  reportedFailed:
+                                    description: The number of pages the crawl reported as failed, or null when the source does not report a complete count.
+                                    type:
+                                    - integer
+                                    - 'null'
+                                  reportedSkipped:
+                                    description: The number of pages the crawl reported as skipped, including those robots.txt disallows, or null when the source does not report a complete count.
+                                    type:
+                                    - integer
+                                    - 'null'
+                                required:
+                                - pagesReturned
+                                - reportedFailed
+                                - reportedSkipped
+                                type: object
                             required:
                             - items
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Website crawl output
                       type: object
+                      x-anyapi-empty-fails-over: true
                     - type: 'null'
                     description: Normalized output, or null when the replay payload was not retained.
                   provider:
@@ -163,6 +330,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -238,7 +429,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -256,7 +447,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -281,8 +472,8 @@ paths:
       x-payment-info:
         price:
           currency: USD
-          max: '0.034700'
-          min: '0.001650'
+          max: '0.012500'
+          min: '0.000000'
           mode: dynamic
         protocols:
         - x402:
@@ -311,8 +502,8 @@ paths:
             - X-PAYMENT-RESPONSE
           pricing:
             currency: USD
-            max: '0.034700'
-            min: '0.001650'
+            max: '0.012500'
+            min: '0.001000'
             minimumUsd: '0.001000'
             mode: dynamic
             quoteBasis: floor
@@ -335,11 +526,11 @@ paths:
             - Payment-Receipt
           pricing:
             currency: USD
-            max: '0.034700'
-            min: '0.001650'
+            max: '0.012500'
+            min: '0.000000'
             minimumUsd: null
             mode: dynamic
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -368,13 +559,13 @@ paths:
         **Catalog:** Web Map pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Web endpoint.'
       operationId: web_map
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -419,6 +610,17 @@ paths:
                 search: domain
                 url: https://www.iana.org
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 includeSubdomains:
                   description: When true (upstream default), include URLs on subdomains of the target (for example docs.example.com when mapping example.com). Set false to return only URLs on the exact host.
                   type: boolean
@@ -440,6 +642,13 @@ paths:
                   - skip
                   - only
                   type: string
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: The base URL of the site to map into a list of links.
                   format: uri
@@ -448,6 +657,7 @@ paths:
               - url
               title: Web map input
               type: object
+              x-anyapi-any-host: true
         required: true
       responses:
         '200':
@@ -459,10 +669,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -500,6 +710,11 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -516,6 +731,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -591,7 +830,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -609,7 +848,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -689,7 +928,7 @@ paths:
             currency: USD
             minimumUsd: null
             mode: fixed
-            quoteBasis: funded_ceiling
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -712,19 +951,19 @@ paths:
         **Price:** \$0.70 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
-        **Routing:** 4 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
+        **Routing:** 5 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
         **Catalog:** Web Scrape pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Web endpoint.'
       operationId: web_scrape
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -775,6 +1014,10 @@ paths:
                 onlyMainContent: false
                 url: https://example.com
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
                 blockAds:
                   description: When true (upstream default), strip ad and cookie-consent elements before capture. Set false to keep them.
                   type: boolean
@@ -795,6 +1038,13 @@ paths:
                     - rawHtml
                     type: string
                   type: array
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 includeTags:
                   description: CSS selectors to keep. When set, only content matching these selectors is captured (for example ["article", "main"] or ["#content"]).
                   items:
@@ -811,13 +1061,28 @@ paths:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                requireFields:
+                  description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Name the output fields this request must be able to return, for example `statusCode`, and it is served only by a source that returns every one of them. Fields you do not name are still returned whenever the serving source has them. This can raise your price: when the cheapest source cannot return a named field, a dearer source serves, and you are quoted and charged its price. A named field can still be absent on a record that genuinely lacks it. Naming a combination that no single source returns together is refused as invalid input, with no charge. A source that reports a field only in some cases, such as only when the website answered with an error, does not count as returning it.'
+                  items:
+                    enum:
+                    - statusCode
+                    type: string
+                  type: array
+                  uniqueItems: true
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
-                  description: The URL of the page to scrape.
+                  description: The full web address of the page to scrape, including its domain, for example https://example.com. The https:// prefix is optional.
                   format: uri
                   minLength: 1
                   type: string
                 waitFor:
-                  description: Milliseconds to wait for the page to finish rendering before capture. Use this for JavaScript-heavy pages or single-page apps whose content loads after the initial paint. Capped at 15000 to stay within the request timeout. This wait is time you asked us to spend, so your response takes this much longer, and it is excluded from the latency published for this endpoint.
+                  description: Milliseconds to wait for the page to finish rendering before capture. Use this for JavaScript-heavy pages or single-page apps whose content loads after the initial paint. Capped at 15000 to stay within the request timeout. This wait is time you asked us to spend, so your response takes this much longer, and it is excluded from the latency published for this endpoint. If every provider that can wait fails, the page may still be returned, captured without the wait.
                   maximum: 15000
                   minimum: 0
                   type: integer
@@ -827,6 +1092,7 @@ paths:
               - url
               title: Web scrape input
               type: object
+              x-anyapi-any-host: true
         required: true
       responses:
         '200':
@@ -838,10 +1104,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -860,6 +1126,9 @@ paths:
                               html:
                                 description: The page HTML exactly as the browser received it, head and script tags included. Present when 'html' is among the requested formats (the default).
                                 type: string
+                              language:
+                                description: Two-letter language code the page declares (its html lang attribute or the equivalent metadata).
+                                type: string
                               markdown:
                                 description: The page content as clean Markdown. Present when 'markdown' is among the requested formats (the default). Populated whenever the provider has data for the entity.
                                 type: string
@@ -867,6 +1136,9 @@ paths:
                               rawHtml:
                                 description: The same bytes as 'html'. Deprecated alias returned only when 'rawHtml' is among the requested formats; use 'html'.
                                 type: string
+                              statusCode:
+                                description: HTTP status code the website answered with, such as 200, 404 or 500. Absent when it could not be determined. Some sources report it only when the website answered with an error; name `statusCode` in requireFields to be served only by a source that always reports it.
+                                type: integer
                               title:
                                 description: The page title from its metadata.
                                 type: string
@@ -881,11 +1153,17 @@ paths:
                             type: object
                         found:
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
                       title: Web scrape output
                       type: object
+                      x-anyapi-app-shell-check: true
                       x-anyapi-empty-fails-over: true
                       x-anyapi-heavy: true
                     - type: 'null'
@@ -899,6 +1177,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -974,7 +1276,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -992,7 +1294,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1016,10 +1318,9 @@ paths:
         href: /api-reference/web/scrape
       x-payment-info:
         price:
+          amount: '0.000700'
           currency: USD
-          max: '0.001500'
-          min: '0.000700'
-          mode: dynamic
+          mode: fixed
         protocols:
         - x402:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1046,11 +1347,10 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
+            amount: '0.001000'
             currency: USD
-            max: '0.001500'
-            min: '0.001000'
             minimumUsd: '0.001000'
-            mode: dynamic
+            mode: fixed
             quoteBasis: floor
           protocol:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1070,12 +1370,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
+            amount: '0.000700'
             currency: USD
-            max: '0.001500'
-            min: '0.000700'
             minimumUsd: null
-            mode: dynamic
-            quoteBasis: funded_ceiling
+            mode: fixed
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1095,22 +1394,22 @@ paths:
       description: 'Capture a real-browser screenshot of any web page URL.
 
 
-        **Price:** billed per result - \$1.74 per 1,000 requests base + \$0.00 per 1,000 results, capped at \$1.74 per 1,000 requests.
+        **Price:** \$1.30 per 1,000 requests (flat per request - same cost regardless of results returned).
 
 
-        **Routing:** one lane serves this API today, so a failed attempt has nowhere to fail over to. Payment outcome follows the selected rail''s settlement policy.
+        **Routing:** 2 independent lanes are available in execution order. A failed attempt uses the next lane only when the request''s payment authorizes that lane''s price; the normalized schema stays the same.
 
 
         **Catalog:** Website Screenshot pricing and uptime - live USD price, lane routing, and measured 30-day uptime. Every Web endpoint.'
       operationId: web_screenshot
       parameters:
-      - description: Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item. Keys are matched relative to each result item after the `data`/`items` envelope is unwrapped, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.
+      - description: 'Optional. Comma-separated keys (dotted paths like `author.name` descend into nested objects) to keep on each result item: each row of the API''s result list, or the `data` object itself for an API that returns one record. Keys are matched relative to that item, not against the top-level response envelope, so use `jq` to reshape the whole envelope. Shrinks the response without changing cost.'
         in: query
         name: fields
         required: false
         schema:
           type: string
-      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. Does not change cost.
+      - description: Optional. Cap the number of result rows returned; a `_truncated` note reports how many were withheld so you can page via the API's own `limit`. An API that returns one record is not trimmed. Does not change cost.
         in: query
         name: max_items
         required: false
@@ -1153,10 +1452,28 @@ paths:
               example:
                 url: https://example.com
               properties:
+                allowFallbacks:
+                  default: true
+                  description: Optional, default true. When false, only the sources listed in `source` may serve; the request is refused with no charge if none of them can. When true, the listed sources are tried first and any other source may serve after them, at the normal price.
+                  type: boolean
+                ignoreSources:
+                  description: Optional. Source ids to skip for this request, taken from this endpoint's `lanes[].source.id`. The cheapest remaining source serves and the price is that of the dearest remaining source. An id that does not serve this endpoint, or that is also in `source`, is rejected as invalid input with no charge; skipping every source is rejected the same way.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 preferLatencyUnderMs:
                   description: 'Optional; omit it and routing is unchanged, with the cheapest source serving. Prefer sources whose typical response time (median over the trailing 30 days, as published on this endpoint''s lane health) is under this many milliseconds; among those, the cheapest serves. This can raise your price: when the cheapest source misses the target, a faster and dearer one serves, and you are quoted and charged its price. If no source is that fast the request is still served, by whichever source offers the best speed for its price - it is never refused for being slow. Sources we have not timed are tried last. This is a preference, not a guarantee: the median describes past requests and is not a ceiling on this one, and it excludes any wait this request itself asks for. On a paginated walk it applies to the first page only: later pages stay with the source that page chose, at the price it was quoted.'
                   minimum: 1
                   type: integer
+                source:
+                  description: Optional. Source ids to prefer, in order, taken from this endpoint's `lanes[].source.id` in /catalog or /apis. Omit it and the cheapest source serves, with automatic failover. Listed sources are tried first in the order given, then the others, unless `allowFallbacks` is false. A single source with `allowFallbacks` false is served only by that source at its price, quoted and charged exactly, with no failover. The price is that of the dearest source that may serve. An id that does not serve this endpoint is rejected as invalid input with no charge; a listed source that is not serving right now is refused with no charge, so omit `source` to be served by another. On a paginated walk, later pages must include the source that served page one, or omit `source`.
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                  uniqueItems: true
                 url:
                   description: The full URL of the page to capture.
                   type: string
@@ -1168,6 +1485,7 @@ paths:
               - url
               title: Website screenshot input
               type: object
+              x-anyapi-any-host: true
         required: true
       responses:
         '200':
@@ -1179,10 +1497,10 @@ paths:
                     description: USD charged on the original run. On a replay this value is echoed for parity; the replay itself is free.
                     type: number
                   hint:
-                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireCursor: true` to be served only by a source that can page, which may cost more per request.'
+                    description: 'Optional one-line nudge, absent when there is nothing to say. `large_result:` suggests the fields/max_items/summary/jq controls for a big response. `paging_unavailable:` means this result came from a source that cannot return a `nextCursor`, so it may be INCOMPLETE and cannot be continued - re-run with `requireFields: ["nextCursor"]` to be served only by a source that can page, which may cost more per request. `malformed_query:` means X read your search query differently than it looks (adjacent bare words are ANDed and OR binds tighter, so a multi-word alternative is not a phrase, and an operator after an unbracketed OR list applies to its last alternative only); the run was served and billed as X read it, and the hint carries the corrected query to send instead. `date_adjusted:` means a date you sent was outside the range the platform accepts, so the run used the nearest accepted date the hint names.'
                     type: string
                   items:
-                    description: Number of result rows returned. For per-result SKUs the per-item cost is charged against this count; for input-priced SKUs the charge is per submitted input, independent of this count.
+                    description: Number of result rows returned; an API that returns one record counts it as one row. For per-result APIs the per-item cost is charged against this count; for input-priced APIs the charge is per submitted input, independent of this count.
                     type: integer
                   jqError:
                     description: Present only when a `jq` expression failed; `output` then carries the full unshaped result and this explains why the reshape did not apply.
@@ -1220,6 +1538,11 @@ paths:
                         found:
                           description: True when a screenshot was captured.
                           type: boolean
+                        reason:
+                          description: 'Present only when `found` is false, and says why there is no result. `not_found`: the source states the target does not exist, or returned nothing for it. A `found: false` answer is a successful call, not an error, and `costUsd` is what it actually cost.'
+                          enum:
+                          - not_found
+                          type: string
                       required:
                       - found
                       - data
@@ -1237,6 +1560,30 @@ paths:
                   resultId:
                     description: Opaque handle to the full unshaped result, cached ~15 min. Re-shape it for free (fields/max_items/summary/jq) via GET /v1/results/{id}, no re-billing. Absent when the result was too large to cache.
                     type: string
+                  source:
+                    description: The source that served this run. Pass its `id` back as `source` to prefer it again, or as `ignoreSources` to avoid it. Absent when no source identity applies to the run.
+                    properties:
+                      artworkKey:
+                        description: Key for this source's artwork.
+                        type: string
+                      id:
+                        description: Stable identifier for this source.
+                        type: string
+                      kind:
+                        description: anonymous is a stable identity for an unattributed source; brand names the dataset that supplies the data.
+                        enum:
+                        - anonymous
+                        - brand
+                        type: string
+                      name:
+                        description: Display name for this source.
+                        type: string
+                    required:
+                    - id
+                    - name
+                    - kind
+                    - artworkKey
+                    type: object
                 required:
                 - output
                 - provider
@@ -1312,7 +1659,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unknown SKU, or the upstream had no matching resource.
+          description: 'Unknown API. A target that does not exist is not a 404: the call succeeds with `output.found` false and `data` null.'
         '409':
           content:
             application/json:
@@ -1330,7 +1677,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The upstream was rate limited; inspect `payment` when present before deciding whether to retry.
+          description: The upstream was rate limited; resend the same request, with the same cursor if one was sent, after Retry-After seconds. Inspect `payment` when present before deciding whether to retry.
         '500':
           content:
             application/json:
@@ -1354,10 +1701,9 @@ paths:
         href: /api-reference/web/screenshot
       x-payment-info:
         price:
+          amount: '0.001300'
           currency: USD
-          max: '0.001740'
-          min: '0.001740'
-          mode: dynamic
+          mode: fixed
         protocols:
         - x402:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1384,11 +1730,10 @@ paths:
             - PAYMENT-RESPONSE
             - X-PAYMENT-RESPONSE
           pricing:
+            amount: '0.001300'
             currency: USD
-            max: '0.001740'
-            min: '0.001740'
             minimumUsd: '0.001000'
-            mode: dynamic
+            mode: fixed
             quoteBasis: floor
           protocol:
             asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -1408,12 +1753,11 @@ paths:
             receipt:
             - Payment-Receipt
           pricing:
+            amount: '0.001300'
             currency: USD
-            max: '0.001740'
-            min: '0.001740'
             minimumUsd: null
-            mode: dynamic
-            quoteBasis: funded_ceiling
+            mode: fixed
+            quoteBasis: floor
           protocol:
             asset: '0x20c000000000000000000000b9537d11c60e8b50'
             currency: USD
@@ -1430,35 +1774,22 @@ paths:
             timing: before_execution
 components:
   schemas:
-    TrialCapReached:
+    Error:
       properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
         error:
-          const: trial_cap_reached
+          description: Customer-safe error message.
           type: string
-        message:
-          description: Human-relayable continuation instructions, including an executable token poll.
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
           type: string
-        upgrade:
-          $ref: '#/components/schemas/AgentUpgrade'
       required:
       - error
-      - message
-      - upgrade
-      type: object
-    AgentUpgrade:
-      properties:
-        authorizationServer:
-          format: uri
-          type: string
-        clientId:
-          type: string
-        device:
-          $ref: '#/components/schemas/DeviceUpgrade'
-        scope:
-          type: string
-      required:
-      - authorizationServer
-      - scope
       type: object
     Payment:
       properties:
@@ -1479,31 +1810,6 @@ components:
       - settlementState
       - costUsd
       type: object
-    Error:
-      properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
-      required:
-      - error
-      type: object
-    PaymentRequiredError:
-      allOf:
-      - $ref: '#/components/schemas/Error'
-      - properties:
-          error:
-            not:
-              const: trial_cap_reached
-        type: object
     DeviceUpgrade:
       properties:
         deviceCode:
@@ -1536,6 +1842,44 @@ components:
       - grantType
       - interval
       - expiresIn
+      type: object
+    AgentUpgrade:
+      properties:
+        authorizationServer:
+          format: uri
+          type: string
+        clientId:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceUpgrade'
+        scope:
+          type: string
+      required:
+      - authorizationServer
+      - scope
+      type: object
+    PaymentRequiredError:
+      allOf:
+      - $ref: '#/components/schemas/Error'
+      - properties:
+          error:
+            not:
+              const: trial_cap_reached
+        type: object
+    TrialCapReached:
+      properties:
+        error:
+          const: trial_cap_reached
+          type: string
+        message:
+          description: Human-relayable continuation instructions, including an executable token poll.
+          type: string
+        upgrade:
+          $ref: '#/components/schemas/AgentUpgrade'
+      required:
+      - error
+      - message
+      - upgrade
       type: object
   securitySchemes:
     apiKeyAuth:
