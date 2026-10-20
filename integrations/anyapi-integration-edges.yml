@@ -7,13 +7,8 @@ source:
 - https://monid.ai/tools/anyapi
 checked:
 - https://api.nuget.org/v3
-- https://cdn.winget.microsoft.com/cache
 - https://composio.dev/toolkits/anyapi
 - https://crates.io/api/v1
-- https://formulae.brew.sh/api/cask.json
-- https://formulae.brew.sh/api/formula.json
-- https://github.com/ScoopInstaller/Extras
-- https://github.com/ScoopInstaller/Main
 - https://monid.ai/tools/anyapi
 - https://n8n.io/integrations/anyapi/
 - https://proxy.golang.org
@@ -24,6 +19,18 @@ checked:
 - https://repo1.maven.org/maven2
 - https://rubygems.org/api/v1
 - https://zapier.com/apps/anyapi/integrations
+- n8n/integrations/n8n-integration-edges.yml
+- https://cdn.winget.microsoft.com/cache
+- https://formulae.brew.sh/api/cask.json
+- https://formulae.brew.sh/api/formula.json
+- https://github.com/ScoopInstaller/Extras
+- https://github.com/ScoopInstaller/Main
+- https://api.github.com
+- https://claude-plugins.dev/sitemap.xml
+- https://github.com/VoltAgent/awesome-agent-skills
+- https://officialskills.sh/sitemap.xml
+- https://skillsmp.com/sitemap.xml
+- https://www.skills.sh/sitemap.xml
 summary: null
 marketplace_apps: []
 edges:
@@ -132,6 +139,53 @@ edges:
     detected: '2026-10-18'
   detected_by: sweep-official-sdks.py
   first_seen: '2026-10-18'
+- partner_name: MCP Registry
+  partner: mcp
+  partner_match: register
+  type: register
+  channel: standard-directory
+  relationship: standard-participant
+  direction: partner-built
+  evidence: https://registry.modelcontextprotocol.io/v0/servers?search=io.github.getanyapi-com
+  contract_reference:
+    register: registry.modelcontextprotocol.io
+    spec_file: null
+    role: mcp-server-listing
+    registered_name: io.github.getanyapi-com/anyapi
+    register_id: io.github.getanyapi-com/anyapi
+    detected_by: sweep-agent-tools.py
+    detected: '2026-10-19'
+  mcp_registry:
+    servers:
+    - io.github.getanyapi-com/anyapi
+    hosted_remote: 1
+    local_package: 1
+    transports:
+      stdio: 2
+      streamable-http: 1
+    auth_declared: 1
+    catalog_declared: true
+    namespace_domains:
+    - getanyapi.com
+  matched_by:
+  - remote-domain
+  detected_by: sweep-agent-tools.py
+  first_seen: '2026-10-14'
+- partner_name: n8n (n8n-community)
+  partner: n8n
+  partner_match: mirror
+  mirror_match: domain
+  type: marketplace
+  relationship: platform-app
+  direction: third-party
+  channel: partner-built
+  marketplace: n8n-community
+  evidence: https://www.npmjs.com/package/n8n-nodes-anyapi
+  mirror_of: n8n/integrations/n8n-integration-edges.yml
+  apps: []
+  listing_count: 1
+  detected: '2026-10-19'
+  detected_by: mirror-platform-listings.py
 - partner_name: npm registry
   partner: npm
   partner_match: register
@@ -162,36 +216,36 @@ edges:
     detected: '2026-10-20'
   detected_by: sweep-official-clis.py
   first_seen: '2026-10-20'
-- partner_name: MCP Registry
-  partner: mcp
+- partner_name: Agent Skills (own GitHub org)
+  partner: null
   partner_match: register
   type: register
-  channel: standard-directory
-  relationship: standard-participant
-  direction: partner-built
-  evidence: https://registry.modelcontextprotocol.io/v0/servers?search=io.github.getanyapi-com
+  direction: provider-built
+  category: Agent Skills package
+  evidence: https://github.com/getanyapi-com/skills
+  channel: provider-built
+  relationship: compatible
+  shape: agent-skills
+  evidence_kind: own-repo
+  degree: skill-repo
+  report_only: true
+  agent_skills:
+    org: getanyapi-com
+    current: true
+    repos:
+    - repo: getanyapi-com/skills
+      archived: false
+      lapsed: false
+      pushed: '2026-10-08'
   contract_reference:
-    register: registry.modelcontextprotocol.io
+    register: 'provider''s own GitHub org (GitHub REST API: repo + git tree holds SKILL.md)'
     spec_file: null
-    role: mcp-server-listing
-    registered_name: io.github.getanyapi-com/anyapi
-    register_id: io.github.getanyapi-com/anyapi
-    detected_by: sweep-agent-tools.py
-    detected: '2026-10-15'
-  mcp_registry:
-    servers:
-    - io.github.getanyapi-com/anyapi
-    hosted_remote: 1
-    local_package: 1
-    transports:
-      stdio: 2
-      streamable-http: 1
-    auth_declared: 1
-    catalog_declared: true
-    namespace_domains:
-    - getanyapi.com
-  matched_by:
-  - remote-domain
-  detected_by: sweep-agent-tools.py
-  first_seen: '2026-10-14'
+    standard: Agent Skills (agentskills.io)
+    role: agent-skills-repo
+    matched_org: getanyapi-com
+    matched_by: org-profile-domain:getanyapi.com
+    detected_by: sweep-agent-skills.py
+    detected: '2026-10-20'
+  detected_by: sweep-agent-skills.py
+  first_seen: '2026-10-20'
 templates: []
