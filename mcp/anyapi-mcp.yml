@@ -42,42 +42,87 @@ server:
   docs: https://getanyapi.com/docs/mcp-server
 tool_count: 10
 tools:
-- name: list_apis
-  description: Browse available AnyAPI APIs as lightweight summaries (id, name, category, USD pricing);
-    descriptions and schemas omitted so it stays cheap across the whole catalog.
-  inputs:
-  - category
-  - context
-  source_operation: openapi/anyapi-gateway-openapi.json#listApis
-- name: search_apis
-  description: Ranked semantic and keyword search across name, slug and description, returning matches
-    with descriptions.
-  inputs:
-  - query
-  - category
-  - platform
-  - limit
-  - context
-  source_operation: openapi/anyapi-gateway-openapi.json#searchCatalog
 - name: get_api
-  description: Full definition of one API by SKU including normalized input/output JSON Schema, per-request
-    and per-1,000 USD pricing on every lane, and trailing-30-day latency p50/p95/p99 with sample count.
+  description: Get the full definition of one API by API slug, including its normalized input/output JSON
+    schemas, per-request and per-1,000-request USD pricing on every source, and nullable trailing-30-day
+    latency p50/p95/p99 with the successful sample count. Latency percentiles describe observed successful
+    requests; p99 is an observation, not a maximum or a client timeout guarantee. Entries with heavy:true
+    produce large API responses.
   inputs:
   - sku_id
   - context
   source_operation: openapi/anyapi-gateway-openapi.json#getApi
+- name: get_balance
+  description: Get the remaining wallet balance (in USD) for the AnyAPI key supplied as a Bearer token.
+    Requires a valid AnyAPI key.
+  inputs:
+  - context
+  source_operation: openapi/anyapi-gateway-openapi.json#getBalance
+- name: get_request
+  description: Inspect or resume a durable AnyAPI request by request_id. This reads AnyAPI's stored state
+    and never repeats the paid provider dispatch. While status is queued or running, retryAfterSeconds
+    gives the minimum interval between status checks.
+  inputs:
+  - request_id
+  - context
+  source_operation: openapi/anyapi-gateway-openapi.json#getRequest
+- name: list_apis
+  description: Browse available AnyAPI APIs as lightweight summaries (id, name, category, USD pricing),
+    optionally filtered by category. Descriptions and schemas are omitted to keep catalog responses small.
+    Each pricing offer carries both `maxUsd` (billed per request) and `maxPer1kUsd` (the same price per
+    1,000 requests).
+  inputs:
+  - category
+  - context
+  source_operation: openapi/anyapi-gateway-openapi.json#listApis
 - name: quote_api
-  description: Price and validate a run_api call BEFORE running it. Free, no key required, nothing charged
-    or executed.
+  description: Get the exact input-aware execution price for an API, free and without a key. Nothing is
+    charged or executed. `sku_id` and `input` identify the proposed execution; pricing resolves exactly
+    as it does for execution, and input validation can return invalid_input without a charge. Returns
+    maxCostUsd (the ceiling reserved), minCostUsd (the likely charge), and the base/per-item breakdown
+    explaining why they differ. These are USD amounts for this one call, not per-1,000-request catalog
+    comparison rates.
   inputs:
   - sku_id
   - input
   - context
   source_operation: null
   note: No matching operation in the published OpenAPI; see mcp/anyapi-tool-crosswalk.yml.
+- name: read_result
+  description: Read or reshape a previously paid API result without executing or paying again. `result_id`
+    identifies the full cached result; fields/max_items/summary/jq control its presentation, including
+    row selection and slicing large fields. Results are cached ~15 min and are private to the authenticated
+    account; an expired id returns result_expired.
+  inputs:
+  - result_id
+  - fields
+  - max_items
+  - summary
+  - jq
+  - context
+  source_operation: openapi/anyapi-gateway-openapi.json#getResult
+- name: report_bug
+  description: Submit a defect report to AnyAPI about wrong, empty, or malformed API data for valid input,
+    misleading or unactionable errors, incorrect prices or schemas, or retries that failed unexpectedly.
+    Free, never charged. `summary` is required and contains one line; optional `request_id` identifies
+    the stored request and its upstream error body without requiring the payload in the report.
+  inputs:
+  - summary
+  - details
+  - sku
+  - request_id
+  - contact
+  - context
+  source_operation: null
 - name: run_api
-  description: Execute an API by SKU with a normalized input payload; returns output, provider, costUsd,
-    items, resultId, with context-budget controls.
+  description: 'Execute an API by API slug with a normalized input payload. Every input schema is strict:
+    unknown fields are rejected, not ignored, and field names can differ between related APIs. Inputs
+    must conform to the endpoint''s schema, not its description. Published latency p50/p95/p99 and sample
+    counts describe observed successful requests; p99 is an observation, not a maximum or a client timeout
+    guarantee. Requires a valid AnyAPI key as a Bearer token. Charges the USD wallet. Some failed wallet-funded
+    requests incur processing charges passed through at cost, with no markup; the error message shows
+    the amount charged. Results can be large. `fields` keeps selected keys, `max_items` caps returned
+    rows, and `summary` returns an outline; these controls reduce response size without changing the charge.'
   inputs:
   - sku_id
   - input
@@ -87,40 +132,27 @@ tools:
   - jq
   - context
   source_operation: openapi/anyapi-gateway-openapi.json#<363 run operations>
-- name: get_request
-  description: Inspect or resume a durable AnyAPI request returned by run_api; reads stored state and
-    never repeats the paid provider dispatch.
+- name: search_apis
+  description: Search APIs by meaning and keyword across name, slug, and description, returning matches
+    with their descriptions but without schemas, ranked most relevant first. At least one of `query`,
+    `category`, or `platform` is required, in any combination; `category` or `platform` without `query`
+    enumerates that scope. `limit` caps matches (default 25, maximum 50). Each result carries a `relevance`
+    score in (0,1] relative to the top match; a relevance floor drops weak matches, so `total` counts
+    relevant matches before the limit. `ranking` identifies meaning-based ('semantic') or substring ('keyword')
+    matching. Entries with heavy:true produce large API responses. Search results omit input schemas;
+    API inputs require the endpoint's strict schema, whose field names can differ between related APIs.
   inputs:
-  - request_id
+  - query
+  - category
+  - platform
+  - limit
   - context
-  source_operation: openapi/anyapi-gateway-openapi.json#getRequest
-- name: read_result
-  description: Re-read a prior paid run for free within roughly a 15-minute window, re-shaped with fields/max_items/summary/jq.
-  inputs:
-  - result_id
-  - fields
-  - max_items
-  - summary
-  - jq
-  - context
-  source_operation: openapi/anyapi-gateway-openapi.json#getResult
-- name: get_balance
-  description: Remaining USD wallet balance for the key supplied as a Bearer token.
-  inputs:
-  - context
-  source_operation: openapi/anyapi-gateway-openapi.json#getBalance
-- name: report_bug
-  description: Report that a run returned wrong, empty or malformed data for input believed valid.
-  inputs:
-  - summary
-  - details
-  - sku
-  - request_id
-  - contact
-  - context
-  source_operation: null
+  source_operation: openapi/anyapi-gateway-openapi.json#searchCatalog
 - name: send_feedback
-  description: Report a non-defect - a missing API, a missing field, a confusing part of the product.
+  description: Submit non-defect feedback to AnyAPI about an API you could not find in the catalog, a
+    missing result field, confusing documentation or tool descriptions, or an improvement that would make
+    a task easier. Free, never charged. `summary` is required and contains one line; optional `details`
+    describes the task or suggestion.
   inputs:
   - summary
   - details
@@ -168,3 +200,4 @@ tool_quality:
   scored: false
   note: Facts from the saved tools/list capture (mcp_tool_quality.py); recorded, not scored. Checks learned
     from Glimind's agent-readiness audit.
+tools_count: 10
