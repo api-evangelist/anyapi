@@ -637,3 +637,9 @@ components:
       scheme: bearer
       type: http
       x-default: YOUR_ANYAPI_KEY
+x-provenance:
+  method: harvested
+  publisher: AnyAPI
+  source: https://api.getanyapi.com/openapi.json
+  note: split by refine-openapis from the provider's own published document, verified by fetch (openapi/_original/*.fetch.json);
+    stamped by stamp-openapi-provenance.py (roadmap#793)
