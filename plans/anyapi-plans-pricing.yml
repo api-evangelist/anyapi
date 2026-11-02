@@ -1,0 +1,620 @@
+# Pricing transcribed from the provider's own page — see provenance. Numbers are quoted, not derived.
+generated: '2026-10-28'
+method: searched
+source: https://getanyapi.com/catalog
+sources:
+- https://getanyapi.com/catalog
+- https://getanyapi.com/pricing
+provenance:
+  tool: engine/economics/harvest_pricing.py
+  run: 20261028T141238
+  grounding: every price_text was found verbatim in the fetched page text
+audience: developer-api
+pricing_basis: per-call
+delivery:
+  delivery: managed
+  method: page
+  read: '2026-10-28'
+published: true
+note: Catalog page listing per-1k-request starting prices across 470 APIs; states "Priced in dollars per
+  request, no subscriptions" and "Get ~160 free requests".
+plan_count: 42
+currency: USD
+plans:
+- name: X / Twitter
+  price_text: from $0.10 /1k req
+  price: 0.1
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: LinkedIn
+  price_text: from $0.66 /1k req
+  price: 0.66
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Facebook
+  price_text: from $1.10 /1k req
+  price: 1.1
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Instagram
+  price_text: from $0.50 /1k req
+  price: 0.5
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: TikTok
+  price_text: from $0.40 /1k req
+  price: 0.4
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Reddit
+  price_text: from $0.30 /1k req
+  price: 0.3
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Google Search & SEO
+  price_text: from $0.40 /1k req
+  price: 0.4
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Web Scraping
+  price_text: from $0.70 /1k req
+  price: 0.7
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Google Ads
+  price_text: from $0.85 /1k req
+  price: 0.85
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Similarweb
+  price_text: from $1.67 /1k req
+  price: 1.67
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Semrush
+  price_text: from $4.95 /1k req
+  price: 4.95
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: SEO
+  price_text: from $1.50 /1k req
+  price: 1.5
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Email Tools
+  price_text: from $6.60 /1k req
+  price: 6.6
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: People Search
+  price_text: from $0.50 /1k req
+  price: 0.5
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Apollo
+  price_text: from $10.00 /1k req
+  price: 10.0
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Person Enrichment
+  price_text: from $7.20 /1k req
+  price: 7.2
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Email Finding
+  price_text: from $1.00 /1k req
+  price: 1.0
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Social Profiles
+  price_text: from $2.31 /1k results
+  price: 2.31
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: Google Maps
+  price_text: from $1.30 /1k req
+  price: 1.3
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Zillow
+  price_text: from $0.80 /1k req
+  price: 0.8
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: GitHub
+  price_text: from $1.20 /1k req
+  price: 1.2
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Upwork
+  price_text: from $7.00 /1k req
+  price: 7.0
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Indeed
+  price_text: from $1.25 /1k req
+  price: 1.25
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: YouTube
+  price_text: from $0.45 /1k req
+  price: 0.45
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: eBay
+  price_text: from $1.20 /1k req
+  price: 1.2
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: TikTok Shop
+  price_text: from $0.95 /1k req
+  price: 0.95
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Amazon
+  price_text: from $0.85 /1k req
+  price: 0.85
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Trustpilot
+  price_text: from $0.80 /1k req
+  price: 0.8
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Alibaba
+  price_text: from $0.88 /1k results
+  price: 0.88
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: G2
+  price_text: from $0.050682 /1k results
+  price: 0.050682
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: Booking.com
+  price_text: from $4.86 /1k results
+  price: 4.86
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: Airbnb
+  price_text: from $1.58 /1k results
+  price: 1.58
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: Tripadvisor
+  price_text: from $3.00 /1k req
+  price: 3.0
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Google Hotels
+  price_text: from $1.50 /1k req
+  price: 1.5
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: SEC EDGAR
+  price_text: from $0.528 /1k results
+  price: 0.528
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: Yahoo Finance
+  price_text: from $1.05 /1k req
+  price: 1.05
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Congress Trades
+  price_text: from $2.05 /1k results
+  price: 2.05
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: CoinMarketCap
+  price_text: from $1.98 /1k results
+  price: 1.98
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: Google Finance
+  price_text: from $2.20 /1k req
+  price: 2.2
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Polymarket
+  price_text: from $5.28 /1k results
+  price: 5.28
+  currency: USD
+  period: per-use
+  unit: 1k results
+- name: Glassdoor
+  price_text: from $7.00 /1k req
+  price: 7.0
+  currency: USD
+  period: per-use
+  unit: 1k requests
+- name: Spotify
+  price_text: from $1.20 /1k req
+  price: 1.2
+  currency: USD
+  period: per-use
+  unit: 1k requests
+x-canonical:
+  generated: '2026-11-01'
+  vocabulary: engine/economics/plans-canonical.yml
+  models:
+  - hybrid
+  - subscription
+  units:
+  - request
+  plans:
+  - name: X / Twitter
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: LinkedIn
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Facebook
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Instagram
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: TikTok
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Reddit
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Google Search & SEO
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Web Scraping
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Google Ads
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Similarweb
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Semrush
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: SEO
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Email Tools
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: People Search
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Apollo
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Person Enrichment
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Email Finding
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Social Profiles
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: Google Maps
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Zillow
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: GitHub
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Upwork
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Indeed
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: YouTube
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: eBay
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: TikTok Shop
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Amazon
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Trustpilot
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Alibaba
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: G2
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: Booking.com
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: Airbnb
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: Tripadvisor
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Google Hotels
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: SEC EDGAR
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: Yahoo Finance
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Congress Trades
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: CoinMarketCap
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: Google Finance
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Polymarket
+    access: other
+    model: subscription
+    model_how: derived
+    units:
+    - other
+    periods:
+    - other
+  - name: Glassdoor
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
+  - name: Spotify
+    access: other
+    model: hybrid
+    model_how: derived
+    units:
+    - request
+    periods:
+    - other
