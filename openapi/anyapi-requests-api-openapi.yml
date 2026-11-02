@@ -51,25 +51,6 @@ paths:
     - url: https://api.getanyapi.com
 components:
   schemas:
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
-      type: object
     RequestSnapshot:
       properties:
         completedAt:
@@ -159,6 +140,25 @@ components:
       - sku
       - status
       - createdAt
+      type: object
+    Payment:
+      properties:
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
+          type: number
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
+      required:
+      - rail
+      - settlementState
+      - costUsd
       type: object
     Error:
       properties:

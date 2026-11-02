@@ -9,6 +9,23 @@ description: >-
   3.1.0 with 370 operations, a hosted MCP server whose tools/list answers anonymously, OAuth 2.1 with device flow,
   llms.txt, a published Agent Skill, an RFC 9727 api-catalog, agents that mint their own capped trial credential with no
   human, and inline per-call crypto payment over x402 and MPP.
+accessModel:
+  pricing: paid
+  onboarding: unknown
+  trial: false
+  try_now: false
+  public: false
+  label: Paid
+  confidence: high
+  source:
+  - plans
+  - authentication
+  - scopes
+  - rate-limits
+  - security
+  - sandbox
+  generated: '2026-11-02'
+  method: derived
 image: https://getanyapi.com/og-v7.png
 url: https://raw.githubusercontent.com/api-evangelist/anyapi/refs/heads/main/apis.yml
 created: '2026-09-04'

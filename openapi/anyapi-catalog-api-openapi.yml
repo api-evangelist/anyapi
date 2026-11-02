@@ -114,6 +114,38 @@ paths:
     - url: https://api.getanyapi.com
 components:
   schemas:
+    Error:
+      properties:
+        code:
+          description: Stable machine-readable error code when the endpoint defines one.
+          type: string
+        error:
+          description: Customer-safe error message.
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+        requestId:
+          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
+          format: uuid
+          type: string
+      required:
+      - error
+      type: object
+    DiscoveryHighlightField:
+      properties:
+        path:
+          description: JSON path of the output field inside this API's outputSchema.
+          type: string
+        type:
+          description: JSON type of that field.
+          type: string
+        why:
+          description: The field's own schema description. Absent when the schema gives none.
+          type: string
+      required:
+      - path
+      - type
+      type: object
     CatalogSearchResult:
       properties:
         category:
@@ -180,6 +212,67 @@ components:
       - platformId
       - relevance
       type: object
+    DiscoveryExecution:
+      properties:
+        mode:
+          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
+          enum:
+          - sync
+          - durable
+          type: string
+      required:
+      - mode
+      type: object
+    DiscoverySourceHealth:
+      properties:
+        latencyP50Ms:
+          description: Median successful service time for this source, in milliseconds.
+          type: integer
+        latencySample:
+          description: Requests behind latencyP50Ms.
+          type: integer
+        requests:
+          description: Requests routed to this source in the window.
+          type: integer
+        servedRequests:
+          description: Requests this source served in the window.
+          type: integer
+        uptimePct:
+          description: Share of requests this source served successfully, as a percentage.
+          type: number
+        uptimeSample:
+          description: Requests behind uptimePct.
+          type: integer
+        window:
+          const: 30d
+          description: The trailing window these measurements cover.
+          type: string
+      required:
+      - window
+      - uptimePct
+      - latencyP50Ms
+      - uptimeSample
+      - latencySample
+      - requests
+      - servedRequests
+      type: object
+    DiscoveryPricing:
+      properties:
+        failoverMaxPer1kUsd:
+          description: failoverMaxUsd in the per-1,000-request denomination.
+          type: number
+        failoverMaxUsd:
+          description: The greatest customer-price maximum across those same sources, in USD.
+          type: number
+        from:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
+      required:
+      - from
+      - failoverMaxUsd
+      - failoverMaxPer1kUsd
+      type: object
     DiscoverySource:
       properties:
         artworkKey:
@@ -202,69 +295,6 @@ components:
       - name
       - kind
       - artworkKey
-      type: object
-    DiscoveryHighlightField:
-      properties:
-        path:
-          description: JSON path of the output field inside this API's outputSchema.
-          type: string
-        type:
-          description: JSON type of that field.
-          type: string
-        why:
-          description: The field's own schema description. Absent when the schema gives none.
-          type: string
-      required:
-      - path
-      - type
-      type: object
-    DiscoveryExecution:
-      properties:
-        mode:
-          description: sync answers on the run request; durable accepts the run as a Request you poll at GET /v1/requests/{id}.
-          enum:
-          - sync
-          - durable
-          type: string
-      required:
-      - mode
-      type: object
-    CatalogSourceOffer:
-      properties:
-        health:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySourceHealth'
-          description: Measured health for this source. Absent when it has too little traffic to publish.
-        pricing:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: This source's own customer price.
-        source:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySource'
-          description: This source's public identity.
-      required:
-      - pricing
-      - source
-      type: object
-    Payment:
-      properties:
-        costUsd:
-          description: Known USD payment amount for this request.
-          minimum: 0
-          type: number
-        rail:
-          minLength: 1
-          type: string
-        settlementState:
-          enum:
-          - charged_undelivered
-          - indeterminate
-          type: string
-      required:
-      - rail
-      - settlementState
-      - costUsd
       type: object
     DiscoveryOffer:
       properties:
@@ -295,22 +325,23 @@ components:
       - maxUsd
       - maxPer1kUsd
       type: object
-    Error:
+    CatalogSourceOffer:
       properties:
-        code:
-          description: Stable machine-readable error code when the endpoint defines one.
-          type: string
-        error:
-          description: Customer-safe error message.
-          type: string
-        payment:
-          $ref: '#/components/schemas/Payment'
-        requestId:
-          description: This run's AnyAPI request id, the same value as the X-Anyapi-Request-Id response header. Quote it to support. Absent on endpoints that do not execute a run.
-          format: uuid
-          type: string
+        health:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySourceHealth'
+          description: Measured health for this source. Absent when it has too little traffic to publish.
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer'
+          description: This source's own customer price.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySource'
+          description: This source's public identity.
       required:
-      - error
+      - pricing
+      - source
       type: object
     CatalogAPI:
       properties:
@@ -385,25 +416,30 @@ components:
       - tryEligible
       - failover
       type: object
-    DiscoveryPricing:
+    Payment:
       properties:
-        failoverMaxPer1kUsd:
-          description: failoverMaxUsd in the per-1,000-request denomination.
+        costUsd:
+          description: Known USD payment amount for this request.
+          minimum: 0
           type: number
-        failoverMaxUsd:
-          description: The greatest customer-price maximum across those same sources, in USD.
-          type: number
-        from:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer'
-          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
+        rail:
+          minLength: 1
+          type: string
+        settlementState:
+          enum:
+          - charged_undelivered
+          - indeterminate
+          type: string
       required:
-      - from
-      - failoverMaxUsd
-      - failoverMaxPer1kUsd
+      - rail
+      - settlementState
+      - costUsd
       type: object
-    DiscoverySourceHealth:
+    DiscoverySourceHealth_2:
       properties:
+        blockedPct:
+          description: Share of this source's attempts the target site refused, as a percentage. Left out of uptimePct. Sent only for web.scrape, where later sources see only the pages earlier ones failed on.
+          type: number
         latencyP50Ms:
           description: Median successful service time for this source, in milliseconds.
           type: integer
@@ -435,28 +471,22 @@ components:
       - requests
       - servedRequests
       type: object
-    CatalogSourceOffer_2:
+    DiscoveryPricing_2:
       properties:
-        fields:
-          description: The output fields this source returns, so you can see before calling which requireFields combinations one source can serve together. Absent when the set is not known for the source.
-          items:
-            type: string
-          type: array
-        health:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySourceHealth_2'
-          description: Measured health for this source. Absent when it has too little traffic to publish.
-        pricing:
+        failoverMaxPer1kUsd:
+          description: failoverMaxUsd in the per-1,000-request denomination.
+          type: number
+        failoverMaxUsd:
+          description: The greatest customer-price maximum across those same sources, in USD, including every optional extra a source sells.
+          type: number
+        from:
           allOf:
           - $ref: '#/components/schemas/DiscoveryOffer_2'
-          description: This source's own customer price.
-        source:
-          allOf:
-          - $ref: '#/components/schemas/DiscoverySource'
-          description: This source's public identity.
+          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
       required:
-      - pricing
-      - source
+      - from
+      - failoverMaxUsd
+      - failoverMaxPer1kUsd
       type: object
     DiscoveryOffer_2:
       properties:
@@ -509,6 +539,29 @@ components:
       - unit
       - maxUsd
       - maxPer1kUsd
+      type: object
+    CatalogSourceOffer_2:
+      properties:
+        fields:
+          description: The output fields this source returns, so you can see before calling which requireFields combinations one source can serve together. Absent when the set is not known for the source.
+          items:
+            type: string
+          type: array
+        health:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySourceHealth_2'
+          description: Measured health for this source. Absent when it has too little traffic to publish.
+        pricing:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryOffer_2'
+          description: This source's own customer price.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/DiscoverySource'
+          description: This source's public identity.
+      required:
+      - pricing
+      - source
       type: object
     CatalogAPI_2:
       properties:
@@ -587,59 +640,6 @@ components:
       - lanes
       - tryEligible
       - failover
-      type: object
-    DiscoveryPricing_2:
-      properties:
-        failoverMaxPer1kUsd:
-          description: failoverMaxUsd in the per-1,000-request denomination.
-          type: number
-        failoverMaxUsd:
-          description: The greatest customer-price maximum across those same sources, in USD, including every optional extra a source sells.
-          type: number
-        from:
-          allOf:
-          - $ref: '#/components/schemas/DiscoveryOffer_2'
-          description: The complete offer for the first source that will be tried, where sources are ordered by the customer charge, cheapest first.
-      required:
-      - from
-      - failoverMaxUsd
-      - failoverMaxPer1kUsd
-      type: object
-    DiscoverySourceHealth_2:
-      properties:
-        blockedPct:
-          description: Share of this source's attempts the target site refused, as a percentage. Left out of uptimePct. Sent only for web.scrape, where later sources see only the pages earlier ones failed on.
-          type: number
-        latencyP50Ms:
-          description: Median successful service time for this source, in milliseconds.
-          type: integer
-        latencySample:
-          description: Requests behind latencyP50Ms.
-          type: integer
-        requests:
-          description: Requests routed to this source in the window.
-          type: integer
-        servedRequests:
-          description: Requests this source served in the window.
-          type: integer
-        uptimePct:
-          description: Share of requests this source served successfully, as a percentage.
-          type: number
-        uptimeSample:
-          description: Requests behind uptimePct.
-          type: integer
-        window:
-          const: 30d
-          description: The trailing window these measurements cover.
-          type: string
-      required:
-      - window
-      - uptimePct
-      - latencyP50Ms
-      - uptimeSample
-      - latencySample
-      - requests
-      - servedRequests
       type: object
   securitySchemes:
     apiKeyAuth:
